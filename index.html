@@ -5115,6 +5115,7 @@ function filterMapMode(el,mode){
   document.querySelectorAll('[data-mode]').forEach(c=>c.classList.remove('active'));
   el.classList.add('active');
   applyMapFilter();
+  updateMapTypeCounts(mode); // อัปเดต type counts ตาม mode
 }
 
 // All props combined with mode tag — used by map
@@ -5223,11 +5224,22 @@ function initMap(){
 }
 
 function mapFitAll(){
-  if(!propMap)return;
+  if(!propMap){initMap();return;}
+  // reset filter → show all
+  mapModeActive='';mapTypeActive='';
+  document.querySelectorAll('[data-mode]').forEach(c=>c.classList.remove('active'));
+  const allModeChip=document.querySelector('[data-mode=""]');
+  if(allModeChip)allModeChip.classList.add('active');
+  document.querySelectorAll('[data-type]').forEach(c=>c.classList.remove('active'));
+  const allTypeChip=document.querySelector('[data-type=""]');
+  if(allTypeChip)allTypeChip.classList.add('active');
+  applyMapFilter();
+  updateMapTypeCounts('');
+  // fit bounds
   const markers=Object.values(propMarkerMap);
-  if(!markers.length)return;
+  if(!markers.length){showToast('ยังไม่มีทรัพย์ที่ตั้งตำแหน่งบนแผนที่');return;}
   const group=L.featureGroup(markers);
-  propMap.fitBounds(group.getBounds().pad(0.12));
+  propMap.fitBounds(group.getBounds().pad(0.15));
 }
 
 function toggleMapEdit(){
@@ -5300,13 +5312,37 @@ function updatePinnedCount(){
   if(ac)ac.textContent=SELL.length+RENT.length;
   if(sc)sc.textContent=SELL.length;
   if(rc)rc.textContent=RENT.length;
-  // อัปเดต type counters
+  // อัปเดต type counters ตาม mode ปัจจุบัน
+  updateMapTypeCounts(mapModeActive||'');
+}
+
+function updateMapTypeCounts(mode){
   const types=['บ้านเดี่ยว','พูลวิลล่า','คอนโด','ทาวน์เฮ้าส์','ที่ดิน','อาคารพาณิชย์','โรงแรม','โรงงาน','โกดัง','อื่นๆ'];
+  // เลือก source ตาม mode
+  let src;
+  if(mode==='sell') src=SELL.map(p=>({...p,mode:'sell'}));
+  else if(mode==='rent') src=RENT.map(p=>({...p,mode:'rent'}));
+  else src=[...SELL.map(p=>({...p,mode:'sell'})),...RENT.map(p=>({...p,mode:'rent'}))];
+
   const allEl=document.getElementById('tc-count-all');
-  if(allEl)allEl.textContent=all.length;
+  if(allEl)allEl.textContent=src.length;
+
   types.forEach(t=>{
     const el=document.getElementById('tc-count-'+t);
-    if(el)el.textContent=all.filter(p=>p.type===t).length;
+    if(!el)return;
+    const count=src.filter(p=>p.type===t).length;
+    el.textContent=count;
+    // ซ่อน chip ที่มี count=0 ถ้า mode ถูก filter
+    const chip=el.closest('.map-type-chip');
+    if(chip && chip.dataset.type){
+      if(mode && count===0){
+        chip.style.opacity='0.35';
+        chip.style.pointerEvents='none';
+      } else {
+        chip.style.opacity='';
+        chip.style.pointerEvents='';
+      }
+    }
   });
 }
 
