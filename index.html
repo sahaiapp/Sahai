@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=1280">
 <title>Sahai — สหาย · เพื่อนคู่คิดนายหน้า</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
@@ -665,40 +665,61 @@ textarea.form-input{resize:vertical;min-height:72px}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:499;transition:opacity .25s}
 
 @media(max-width:768px){
-  /* Hamburger button */
+  /* === TOPBAR === */
   .hamburger-btn{display:flex}
-  /* Sidebar becomes a sliding drawer */
+  .tb-feedback-btn{display:none!important}
+  .topbar-search{display:none!important}
+  .tb-add-listing-btn{display:none!important}
+  .brand{min-width:auto;padding-right:8px}
+  .topbar{padding:0 10px;gap:8px}
+  .topbar-btn{padding:6px 10px;font-size:12px}
+
+  /* === SIDEBAR DRAWER === */
   .sidebar{
     position:fixed;left:0;top:0;bottom:0;z-index:500;
     width:240px;transform:translateX(-100%);
     transition:transform .25s ease;display:flex!important
   }
   .sidebar.mob-open{transform:translateX(0)}
-  /* Overlay visible when sidebar open */
   .sidebar-overlay{display:block;opacity:0;pointer-events:none}
   .sidebar-overlay.mob-open{opacity:1;pointer-events:auto}
-  /* Hide Feedback button on mobile */
-  .tb-feedback-btn{display:none!important}
-  /* Brand smaller */
-  .brand{min-width:auto;padding-right:8px}
-  /* Search takes remaining space */
-  .topbar-search{max-width:none}
-  /* Topbar buttons smaller */
-  .topbar-btn{padding:6px 10px;font-size:12px}
-  /* Main content full width */
+
+  /* === MAIN LAYOUT === */
   .main-wrap{width:100%}
-  /* Grid fixes */
+  .main{padding:12px}
+
+  /* === DASHBOARD === */
+  .dash-hero{padding:16px 12px}
+  .dash-chips{gap:6px;flex-wrap:wrap}
+  .dash-chip{font-size:11px;padding:5px 10px}
+  .dash-paste{padding:12px}
+  .dash-paste-row{flex-direction:column;gap:8px}
+  .dash-paste-btns{flex-direction:row;gap:8px}
+
+  /* Stack map + recent list vertically */
+  .dash-mid{grid-template-columns:1fr}
+  #dash-map{height:200px}
+
+  /* Portfolio stat cards → single column */
+  .stat-grid{grid-template-columns:1fr!important}
+
+  /* Onboarding steps → 1 column */
+  .dash-onboard-steps{grid-template-columns:1fr!important}
+
+  /* === GRIDS === */
   .cards-grid{grid-template-columns:1fr}
   .two-col{grid-template-columns:1fr}
   .detail-grid-2{grid-template-columns:1fr}
+
+  /* === AI PANEL === */
   .ai-panel{width:100%}
   .main-wrap.ai-open{margin-right:0}
-  /* Table horizontal scroll */
+
+  /* === TABLE === */
   .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  /* Dashboard adjustments */
-  .dash-hero{padding:20px 16px}
-  .dash-chips{gap:6px}
-  .dash-chip{font-size:11px;padding:5px 10px}
+
+  /* === TOPNAV hide on mobile (use sidebar) === */
+  .topnav{display:none}
 }
 </style>
 </head>
@@ -825,7 +846,7 @@ textarea.form-input{resize:vertical;min-height:72px}
   </div>
   <div class="topbar-right">
     <button class="topbar-btn tb-outline tb-feedback-btn" onclick="showFeedback()" title="ให้คะแนน Sahai" style="gap:4px">⭐ Feedback</button>
-    <button class="topbar-btn tb-outline" onclick="showAddListing()">＋ เพิ่มทรัพย์</button>
+    <button class="topbar-btn tb-outline tb-add-listing-btn" onclick="showAddListing()">＋ เพิ่มทรัพย์</button>
     <button class="topbar-btn tb-primary" onclick="showAddLead()">＋ Lead ใหม่</button>
     <button class="ai-toggle-btn" id="ai-toggle" onclick="toggleAiPanel()" title="AI Team" style="display:none">🤖<div class="notif-dot"></div></button>
     <!-- User button -->
