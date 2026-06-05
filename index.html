@@ -660,9 +660,45 @@ textarea.form-input{resize:vertical;min-height:72px}
 .filter-reset:hover{background:var(--border)}
 .filter-active-count{display:inline-flex;align-items:center;background:var(--primary);color:#fff;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:700;margin-left:4px}
 
+.hamburger-btn{display:none;align-items:center;justify-content:center;width:38px;height:38px;background:none;border:none;color:#e2e8f0;font-size:24px;cursor:pointer;border-radius:6px;flex-shrink:0;line-height:1}
+.hamburger-btn:hover{background:#1e293b}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:499;transition:opacity .25s}
+
 @media(max-width:768px){
-  .sidebar{display:none}.cards-grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}
-  .detail-grid-2{grid-template-columns:1fr}.ai-panel{width:100%}.main-wrap.ai-open{margin-right:0}
+  /* Hamburger button */
+  .hamburger-btn{display:flex}
+  /* Sidebar becomes a sliding drawer */
+  .sidebar{
+    position:fixed;left:0;top:0;bottom:0;z-index:500;
+    width:240px;transform:translateX(-100%);
+    transition:transform .25s ease;display:flex!important
+  }
+  .sidebar.mob-open{transform:translateX(0)}
+  /* Overlay visible when sidebar open */
+  .sidebar-overlay{display:block;opacity:0;pointer-events:none}
+  .sidebar-overlay.mob-open{opacity:1;pointer-events:auto}
+  /* Hide Feedback button on mobile */
+  .tb-feedback-btn{display:none!important}
+  /* Brand smaller */
+  .brand{min-width:auto;padding-right:8px}
+  /* Search takes remaining space */
+  .topbar-search{max-width:none}
+  /* Topbar buttons smaller */
+  .topbar-btn{padding:6px 10px;font-size:12px}
+  /* Main content full width */
+  .main-wrap{width:100%}
+  /* Grid fixes */
+  .cards-grid{grid-template-columns:1fr}
+  .two-col{grid-template-columns:1fr}
+  .detail-grid-2{grid-template-columns:1fr}
+  .ai-panel{width:100%}
+  .main-wrap.ai-open{margin-right:0}
+  /* Table horizontal scroll */
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  /* Dashboard adjustments */
+  .dash-hero{padding:20px 16px}
+  .dash-chips{gap:6px}
+  .dash-chip{font-size:11px;padding:5px 10px}
 }
 </style>
 </head>
@@ -778,6 +814,7 @@ textarea.form-input{resize:vertical;min-height:72px}
 <div id="main-app" style="display:none">
 
 <div class="topbar">
+  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileSidebar()" title="เมนู">&#9776;</button>
   <div class="brand" onclick="showPage('dashboard',document.getElementById('nav-dashboard'))" style="cursor:pointer" title="กลับหน้าหลัก">
     <div class="brand-logo">👥</div>
     <div class="brand-text">Sah<span>ai</span></div>
@@ -787,7 +824,7 @@ textarea.form-input{resize:vertical;min-height:72px}
     <input type="text" placeholder="ค้นหาทรัพย์ รหัส หรือทำเล..." id="global-search" oninput="globalSearch(this.value)">
   </div>
   <div class="topbar-right">
-    <button class="topbar-btn tb-outline" onclick="showFeedback()" title="ให้คะแนน Sahai" style="gap:4px">⭐ Feedback</button>
+    <button class="topbar-btn tb-outline tb-feedback-btn" onclick="showFeedback()" title="ให้คะแนน Sahai" style="gap:4px">⭐ Feedback</button>
     <button class="topbar-btn tb-outline" onclick="showAddListing()">＋ เพิ่มทรัพย์</button>
     <button class="topbar-btn tb-primary" onclick="showAddLead()">＋ Lead ใหม่</button>
     <button class="ai-toggle-btn" id="ai-toggle" onclick="toggleAiPanel()" title="AI Team" style="display:none">🤖<div class="notif-dot"></div></button>
@@ -881,6 +918,7 @@ textarea.form-input{resize:vertical;min-height:72px}
       </div>
     </div>
   </aside>
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMobileSidebar()"></div>
 
   <div class="main-wrap" id="main-wrap">
     <div class="main">
@@ -1324,6 +1362,13 @@ function today(){return new Date().toISOString().split('T')[0];}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
 
 function showPage(id,el,fromTopnav){
+  // Close mobile sidebar when navigating
+  if(window.innerWidth<=768){
+    var sb=document.querySelector('.sidebar');
+    var ov=document.getElementById('sidebar-overlay');
+    if(sb)sb.classList.remove('mob-open');
+    if(ov)ov.classList.remove('mob-open');
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -5452,6 +5497,19 @@ function quickAccess(){
 }
 function loginGoogle(){quickAccess();}
 function loginLINE(){quickAccess();}
+
+function toggleMobileSidebar(){
+  var sb=document.querySelector('.sidebar');
+  var ov=document.getElementById('sidebar-overlay');
+  var isOpen=sb.classList.contains('mob-open');
+  if(isOpen){
+    sb.classList.remove('mob-open');
+    ov.classList.remove('mob-open');
+  } else {
+    sb.classList.add('mob-open');
+    ov.classList.add('mob-open');
+  }
+}
 
 function doLogout(){
   _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
