@@ -2658,9 +2658,11 @@ function confirmDeleteListing(type,id){
   const data=type==='sell'?SELL:RENT;
   const idx=data.findIndex(x=>x.id===id);
   if(idx>=0)data.splice(idx,1);
+  saveData(); // บันทึกหลังลบ
   // Remove map marker
   if(propMap&&propMarkerMap[id]){propMap.removeLayer(propMarkerMap[id]);delete propMarkerMap[id];}
   renderCards('sell');renderTable('sell');renderCards('rent');renderTable('rent');
+  renderDashboard();updateTopnavBadges();updatePinnedCount();
   closeModal();
   showToast(`🗑 ลบ ${id} เรียบร้อยแล้ว`);
 }
@@ -4809,19 +4811,24 @@ function confirmCloseDeal(type,id){
   const totalRounds=p.commHistory.length+1;
   showToast(`🎉 ปิดดีลครั้งที่ ${totalRounds}! บันทึกค่าคอมแล้ว`);
 }
+function _lsKey(k){
+  // key แบบ uid-specific → แต่ละ user เห็นแค่ข้อมูลตัวเอง
+  const uid=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
+  return uid?'sahai_'+k+'_'+uid:'';
+}
 function saveData(){
-  // 1. บันทึก localStorage พร้อม uid เพื่อป้องกัน cross-user data leak
-  const _saveUser=_fbAuth?_fbAuth.currentUser:null;
-  if(!_saveUser)return; // ไม่บันทึกถ้าไม่ได้ login
+  const user=_fbAuth?_fbAuth.currentUser:null;
+  if(!user)return; // ไม่บันทึกถ้าไม่ได้ login
+  // 1. บันทึก localStorage ด้วย key เฉพาะของ user นี้
   try{
-    localStorage.setItem('sahai_sell',JSON.stringify(SELL));
-    localStorage.setItem('sahai_rent',JSON.stringify(RENT));
-    localStorage.setItem('sahai_leads',JSON.stringify(leads));
-    localStorage.setItem('sahai_uid',_saveUser.uid); // เก็บ uid เจ้าของข้อมูล
+    const k=_lsKey('');
+    if(k){
+      localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
+      localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
+      localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
+    }
   }catch(e){}
   // 2. บันทึก Firestore (cloud sync)
-  const user=_fbAuth?_fbAuth.currentUser:null;
-  if(!user)return;
   const stripB64=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
   _fbDb.collection('users').doc(user.uid).set({
     sell:stripB64(SELL),rent:stripB64(RENT),leads:leads,updatedAt:Date.now()
@@ -4836,15 +4843,14 @@ function saveData(){
   });
 }
 async function loadData(){
-  // ===== STEP 1: โหลด localStorage เฉพาะถ้า uid ตรงกับ user ปัจจุบัน =====
+  // ===== STEP 1: โหลด localStorage ด้วย uid-specific key =====
   try{
     const _loadUser=_fbAuth?_fbAuth.currentUser:null;
-    const storedUid=localStorage.getItem('sahai_uid');
-    // โหลด localStorage เฉพาะเมื่อ uid ตรงกัน (ป้องกัน cross-user leak)
-    if(_loadUser && storedUid === _loadUser.uid){
-      const s=localStorage.getItem('sahai_sell');
-      const r=localStorage.getItem('sahai_rent');
-      const ld=localStorage.getItem('sahai_leads');
+    if(_loadUser){
+      const uid=_loadUser.uid;
+      const s=localStorage.getItem('sahai_sell_'+uid);
+      const r=localStorage.getItem('sahai_rent_'+uid);
+      const ld=localStorage.getItem('sahai_leads_'+uid);
       if(s){const arr=JSON.parse(s);SELL.length=0;arr.forEach(p=>SELL.push(p));}
       if(r){const arr=JSON.parse(r);RENT.length=0;arr.forEach(p=>RENT.push(p));}
       if(ld){const arr=JSON.parse(ld);leads.length=0;arr.forEach(l=>leads.push(l));}
@@ -4864,11 +4870,14 @@ async function loadData(){
           SELL.length=0; cSell.forEach(p=>SELL.push(p));
           RENT.length=0; cRent.forEach(p=>RENT.push(p));
           leads.length=0; cLeads.forEach(l=>leads.push(l));
-          // sync กลับมา localStorage
+          // sync กลับมา localStorage ด้วย uid-specific key
           try{
-            localStorage.setItem('sahai_sell',JSON.stringify(SELL));
-            localStorage.setItem('sahai_rent',JSON.stringify(RENT));
-            localStorage.setItem('sahai_leads',JSON.stringify(leads));
+            const _uid=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
+            if(_uid){
+              localStorage.setItem('sahai_sell_'+_uid,JSON.stringify(SELL));
+              localStorage.setItem('sahai_rent_'+_uid,JSON.stringify(RENT));
+              localStorage.setItem('sahai_leads_'+_uid,JSON.stringify(leads));
+            }
           }catch(e){}
         } else if((SELL.length>cSell.length||RENT.length>cRent.length) && (SELL.length>0||RENT.length>0)){
           // localStorage มีข้อมูลมากกว่า → sync ขึ้น cloud
@@ -5591,12 +5600,18 @@ function toggleMobileSidebar(){
 
 function doLogout(){
   _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
-  // ล้าง localStorage เมื่อ logout เพื่อป้องกัน user อื่นเห็นข้อมูล
+  // ล้าง localStorage ทั้งหมดของ user นี้
   try{
-    localStorage.removeItem('sahai_sell');
-    localStorage.removeItem('sahai_rent');
-    localStorage.removeItem('sahai_leads');
-    localStorage.removeItem('sahai_cloud_sync');
+    const _logoutUid=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
+    if(_logoutUid){
+      localStorage.removeItem('sahai_sell_'+_logoutUid);
+      localStorage.removeItem('sahai_rent_'+_logoutUid);
+      localStorage.removeItem('sahai_leads_'+_logoutUid);
+    }
+    // ล้าง key เก่า (format เดิม) ด้วยเพื่อความปลอดภัย
+    ['sahai_sell','sahai_rent','sahai_leads','sahai_cloud_sync','sahai_uid'].forEach(k=>{
+      try{localStorage.removeItem(k);}catch(e){}
+    });
   }catch(e){}
   _fbAuth.signOut().catch(()=>{});
   document.getElementById('main-app').style.display='none';
@@ -5886,10 +5901,10 @@ function initApp(){
     } else {
       _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
       try{
-        localStorage.removeItem('sahai_sell');
-        localStorage.removeItem('sahai_rent');
-        localStorage.removeItem('sahai_leads');
-        localStorage.removeItem('sahai_cloud_sync');
+        // ล้าง key เก่า (format เดิม)
+        ['sahai_sell','sahai_rent','sahai_leads','sahai_cloud_sync','sahai_uid'].forEach(k=>{
+          try{localStorage.removeItem(k);}catch(e){}
+        });
       }catch(e){}
       document.getElementById('auth-screen').style.display='flex';
       document.getElementById('main-app').style.display='none';
