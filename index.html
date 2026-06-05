@@ -4810,11 +4810,14 @@ function confirmCloseDeal(type,id){
   showToast(`🎉 ปิดดีลครั้งที่ ${totalRounds}! บันทึกค่าคอมแล้ว`);
 }
 function saveData(){
-  // 1. บันทึก localStorage ก่อนเสมอ
+  // 1. บันทึก localStorage พร้อม uid เพื่อป้องกัน cross-user data leak
+  const _saveUser=_fbAuth?_fbAuth.currentUser:null;
+  if(!_saveUser)return; // ไม่บันทึกถ้าไม่ได้ login
   try{
     localStorage.setItem('sahai_sell',JSON.stringify(SELL));
     localStorage.setItem('sahai_rent',JSON.stringify(RENT));
     localStorage.setItem('sahai_leads',JSON.stringify(leads));
+    localStorage.setItem('sahai_uid',_saveUser.uid); // เก็บ uid เจ้าของข้อมูล
   }catch(e){}
   // 2. บันทึก Firestore (cloud sync)
   const user=_fbAuth?_fbAuth.currentUser:null;
@@ -4833,14 +4836,19 @@ function saveData(){
   });
 }
 async function loadData(){
-  // ===== STEP 1: โหลด localStorage ก่อนเสมอ (เร็ว, ไม่พลาด) =====
+  // ===== STEP 1: โหลด localStorage เฉพาะถ้า uid ตรงกับ user ปัจจุบัน =====
   try{
-    const s=localStorage.getItem('sahai_sell');
-    const r=localStorage.getItem('sahai_rent');
-    const ld=localStorage.getItem('sahai_leads');
-    if(s){const arr=JSON.parse(s);SELL.length=0;arr.forEach(p=>SELL.push(p));}
-    if(r){const arr=JSON.parse(r);RENT.length=0;arr.forEach(p=>RENT.push(p));}
-    if(ld){const arr=JSON.parse(ld);leads.length=0;arr.forEach(l=>leads.push(l));}
+    const _loadUser=_fbAuth?_fbAuth.currentUser:null;
+    const storedUid=localStorage.getItem('sahai_uid');
+    // โหลด localStorage เฉพาะเมื่อ uid ตรงกัน (ป้องกัน cross-user leak)
+    if(_loadUser && storedUid === _loadUser.uid){
+      const s=localStorage.getItem('sahai_sell');
+      const r=localStorage.getItem('sahai_rent');
+      const ld=localStorage.getItem('sahai_leads');
+      if(s){const arr=JSON.parse(s);SELL.length=0;arr.forEach(p=>SELL.push(p));}
+      if(r){const arr=JSON.parse(r);RENT.length=0;arr.forEach(p=>RENT.push(p));}
+      if(ld){const arr=JSON.parse(ld);leads.length=0;arr.forEach(l=>leads.push(l));}
+    }
   }catch(e){}
 
   // ===== STEP 2: เช็ค Firestore — ใช้เฉพาะถ้ามีข้อมูลมากกว่า localStorage =====
@@ -5583,6 +5591,13 @@ function toggleMobileSidebar(){
 
 function doLogout(){
   _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
+  // ล้าง localStorage เมื่อ logout เพื่อป้องกัน user อื่นเห็นข้อมูล
+  try{
+    localStorage.removeItem('sahai_sell');
+    localStorage.removeItem('sahai_rent');
+    localStorage.removeItem('sahai_leads');
+    localStorage.removeItem('sahai_cloud_sync');
+  }catch(e){}
   _fbAuth.signOut().catch(()=>{});
   document.getElementById('main-app').style.display='none';
   document.getElementById('auth-screen').style.display='flex';
@@ -5870,6 +5885,12 @@ function initApp(){
       _renderAll();
     } else {
       _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
+      try{
+        localStorage.removeItem('sahai_sell');
+        localStorage.removeItem('sahai_rent');
+        localStorage.removeItem('sahai_leads');
+        localStorage.removeItem('sahai_cloud_sync');
+      }catch(e){}
       document.getElementById('auth-screen').style.display='flex';
       document.getElementById('main-app').style.display='none';
     }
