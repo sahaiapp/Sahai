@@ -5442,7 +5442,7 @@ function doRegister(){
   okEl.textContent='กำลังสมัครสมาชิก...';okEl.style.display='';
   _fbAuth.createUserWithEmailAndPassword(email,pass)
     .then(cred=>cred.user.updateProfile({displayName:name}))
-    .catch(e=>{errEl.textContent=_fbErrMsg(e.code);errEl.style.display='';okEl.style.display='none';});
+    .catch(e=>{errEl.textContent=_fbErrMsg(e.code)||(e.message||e.code||'เกิดข้อผิดพลาด');errEl.style.display='';okEl.style.display='none';console.error('Register error:',e.code,e.message);});
 }
 
 function quickAccess(){
