@@ -33,12 +33,12 @@ body{font-family:'Sarabun',system-ui,sans-serif;background:#f1f5f9;color:var(--t
 a{text-decoration:none;color:inherit}
 
 /* ── TOPBAR (dark) ── */
-.topbar{height:var(--topbar-h);background:#0f172a;border-bottom:1px solid #1e293b;display:flex;align-items:center;padding:0 20px;position:sticky;top:0;z-index:200;gap:12px}
-.brand{display:flex;align-items:center;gap:8px;min-width:var(--sidebar-w);padding-right:16px;border-radius:8px;transition:.15s}
+.topbar{height:var(--topbar-h);background:#0f172a;border-bottom:1px solid #1e293b;display:flex;align-items:center;padding:0 20px 0 0;position:sticky;top:0;z-index:200;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;width:var(--sidebar-w);flex-shrink:0;padding:0 16px 0 20px;transition:.15s}
 .brand:hover{opacity:.8}
-.brand-logo{width:32px;height:32px;background:#1877F2;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;color:#fff}
-.brand-text{font-size:15px;font-weight:700;letter-spacing:-.3px;color:#f1f5f9}
-.brand-text span{color:#60a5fa}
+.brand-logo{width:48px;height:48px;background:linear-gradient(135deg,#1d4ed8,#3b82f6);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;color:#fff;box-shadow:0 4px 16px rgba(59,130,246,.6)}
+.brand-text{font-size:26px;font-weight:900;letter-spacing:-.5px;color:#fff}
+.brand-text span{background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
 .topbar-search{flex:1;max-width:420px;position:relative}
 .topbar-search input{width:100%;padding:8px 12px 8px 36px;border:1.5px solid #334155;border-radius:8px;font-size:13px;font-family:inherit;background:#1e293b;outline:none;transition:.15s;color:#e2e8f0}
 .topbar-search input:focus{border-color:#60a5fa;background:#1e293b;box-shadow:0 0 0 3px rgba(96,165,250,.15)}
@@ -840,7 +840,7 @@ textarea.form-input{resize:vertical;min-height:72px}
     <div class="brand-logo">👥</div>
     <div class="brand-text">Sah<span>ai</span></div>
   </div>
-  <div class="topbar-search">
+  <div class="topbar-search" id="topbar-search-wrap">
     <span class="search-icon">🔍</span>
     <input type="text" placeholder="ค้นหาทรัพย์ รหัส หรือทำเล..." id="global-search" oninput="globalSearch(this.value)">
   </div>
@@ -1380,7 +1380,13 @@ function statusCls(s){if(!s||s.includes('พร้อม')||s==='พร้อม
 function statusLabel(s){return s||'พร้อมขาย/ว่าง';}
 function typeIcon(t){if(!t)return'🏠';if(t.includes('คอนโด'))return'🏢';if(t.includes('ที่ดิน'))return'🌿';if(t.includes('วิลล่า'))return'🏖️';return'🏡';}
 function today(){return new Date().toISOString().split('T')[0];}
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+function showToast(msg,type){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background = type==='warn'?'#b45309':type==='error'?'#dc2626':'';
+  t.classList.add('show');
+  setTimeout(()=>{t.classList.remove('show');t.style.background='';},type==='warn'?4000:2600);
+}
 
 function showPage(id,el,fromTopnav){
   // Close mobile sidebar when navigating
@@ -1390,6 +1396,9 @@ function showPage(id,el,fromTopnav){
     if(sb)sb.classList.remove('mob-open');
     if(ov)ov.classList.remove('mob-open');
   }
+  // ซ่อน topbar search บนหน้า dashboard (มี AI search ของตัวเองอยู่แล้ว)
+  var tsw=document.getElementById('topbar-search-wrap');
+  if(tsw) tsw.style.visibility = (id==='dashboard') ? 'hidden' : 'visible';
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
@@ -4800,30 +4809,70 @@ function confirmCloseDeal(type,id){
   showToast(`🎉 ปิดดีลครั้งที่ ${totalRounds}! บันทึกค่าคอมแล้ว`);
 }
 function saveData(){
-  try{localStorage.setItem('sahai_sell',JSON.stringify(SELL));localStorage.setItem('sahai_rent',JSON.stringify(RENT));localStorage.setItem('sahai_leads',JSON.stringify(leads));}catch(e){}
+  // 1. บันทึก localStorage ก่อนเสมอ
+  try{
+    localStorage.setItem('sahai_sell',JSON.stringify(SELL));
+    localStorage.setItem('sahai_rent',JSON.stringify(RENT));
+    localStorage.setItem('sahai_leads',JSON.stringify(leads));
+  }catch(e){}
+  // 2. บันทึก Firestore (cloud sync)
   const user=_fbAuth?_fbAuth.currentUser:null;
   if(!user)return;
   const stripB64=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
   _fbDb.collection('users').doc(user.uid).set({
     sell:stripB64(SELL),rent:stripB64(RENT),leads:leads,updatedAt:Date.now()
-  },{merge:true}).catch(e=>console.warn('Firestore save:',e));
+  },{merge:true})
+  .then(()=>{
+    // อัปเดต localStorage sync timestamp
+    try{localStorage.setItem('sahai_cloud_sync',Date.now().toString());}catch(e){}
+  })
+  .catch(e=>{
+    console.error('Firestore save error:',e.code, e.message);
+    showToast('⚠️ บันทึก Cloud ไม่สำเร็จ: '+( e.code||e.message||'unknown'),'warn');
+  });
 }
 async function loadData(){
+  let loadedFromCloud = false;
   try{
     const user=_fbAuth?_fbAuth.currentUser:null;
-    if(user){
+    if(user && _fbDb){
       const doc=await _fbDb.collection('users').doc(user.uid).get();
       if(doc.exists){
         const d=doc.data();
-        if(d.sell){SELL.length=0;d.sell.forEach(p=>SELL.push(p));}
-        if(d.rent){RENT.length=0;d.rent.forEach(p=>RENT.push(p));}
-        if(d.leads){leads.length=0;d.leads.forEach(l=>leads.push(l));}
+        // โหลด cloud data (แม้ array ว่างก็โหลด)
+        SELL.length=0; if(d.sell&&d.sell.length>0){d.sell.forEach(p=>SELL.push(p));}
+        RENT.length=0; if(d.rent&&d.rent.length>0){d.rent.forEach(p=>RENT.push(p));}
+        leads.length=0; if(d.leads&&d.leads.length>0){d.leads.forEach(l=>leads.push(l));}
+        loadedFromCloud = true;
+        // ถ้า cloud ว่าง แต่ localStorage มีข้อมูล → ให้ sync ขึ้น cloud
+        if(SELL.length===0 && RENT.length===0){
+          try{
+            const ls=localStorage.getItem('sahai_sell');
+            const lr=localStorage.getItem('sahai_rent');
+            const ll=localStorage.getItem('sahai_leads');
+            const lsArr=ls?JSON.parse(ls):[];
+            const lrArr=lr?JSON.parse(lr):[];
+            const llArr=ll?JSON.parse(ll):[];
+            if(lsArr.length>0||lrArr.length>0){
+              lsArr.forEach(p=>SELL.push(p));
+              lrArr.forEach(p=>RENT.push(p));
+              llArr.forEach(l=>leads.push(l));
+              // sync localStorage data ขึ้น cloud
+              saveData();
+            }
+          }catch(e){}
+        }
         return;
       }
     }
-  }catch(e){console.warn('Firestore load:',e);}
+  }catch(e){
+    console.warn('Firestore load error:',e.code||e.message);
+  }
+  // fallback: โหลดจาก localStorage
   try{
-    const s=localStorage.getItem('sahai_sell');const r=localStorage.getItem('sahai_rent');const ld=localStorage.getItem('sahai_leads');
+    const s=localStorage.getItem('sahai_sell');
+    const r=localStorage.getItem('sahai_rent');
+    const ld=localStorage.getItem('sahai_leads');
     if(s){const arr=JSON.parse(s);SELL.length=0;arr.forEach(p=>SELL.push(p));}
     if(r){const arr=JSON.parse(r);RENT.length=0;arr.forEach(p=>RENT.push(p));}
     if(ld){const arr=JSON.parse(ld);leads.length=0;arr.forEach(l=>leads.push(l));}
@@ -5795,6 +5844,9 @@ function clearProperties(mode){
 /* ===== INIT ===== */
 function _renderAll(){
   try{renderCards('sell');renderTable('sell');renderCards('rent');renderTable('rent');renderPipeline();renderDashboard();renderRecentOnly();updateFollowupBadge();}catch(e){}
+  // ซ่อน topbar search บน dashboard ตอนเริ่มต้น
+  var tsw=document.getElementById('topbar-search-wrap');
+  if(tsw) tsw.style.visibility='hidden';
 }
 
 function initApp(){
