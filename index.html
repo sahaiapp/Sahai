@@ -1349,20 +1349,20 @@ textarea.form-input{resize:vertical;min-height:72px}
       </div>
       <div id="sc-translate-status" style="font-size:11px;color:var(--text2);display:none">⏳ กำลังแปล...</div>
 
-      <button class="btn btn-outline btn-sm" onclick="saveShareImage()" id="sc-img-btn" style="gap:4px;color:#059669;border-color:#6EE7B7">🖼 การ์ด</button>
+      <button class="btn btn-outline btn-sm" onclick="saveShareImage()" id="sc-img-btn" style="gap:4px;color:#059669;border-color:#6EE7B7">📋 Copy รูป</button>
       <button class="btn btn-outline btn-sm" onclick="shareAllPhotos()" id="sc-allphoto-btn" style="gap:4px;color:#7C3AED;border-color:#DDD6FE">📸 ทุกรูป</button>
       <button class="btn btn-primary btn-sm" onclick="printShareCard()" style="gap:4px">🖨 PDF</button>
       <button style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--text2);padding:0 4px" onclick="closeShareCard()">✕</button>
     </div>
     <!-- Multi-lang copy bar -->
     <div class="sc-copy-bar" id="sc-copy-bar">
-      <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap">📋️ ข้อความโฆษรรณการ:</span>
+      <span style="font-size:12px;font-weight:600;color:var(--text2);white-space:nowrap">📋 ข้อความโฆษณา:</span>
       <div class="sc-lang-chip active" id="cl-th" onclick="toggleCopyLang('th')">🇹🇭 ไทย</div>
       <div class="sc-lang-chip" id="cl-en" onclick="toggleCopyLang('en')">🇬🇧 EN</div>
       <div class="sc-lang-chip" id="cl-zh" onclick="toggleCopyLang('zh')">🇨🇳 中文</div>
       <div class="sc-lang-chip" id="cl-ru" onclick="toggleCopyLang('ru')">🇷🇺 RU</div>
       <span id="sc-copy-status" style="font-size:11px;color:var(--text2);display:none">⏳ กำลังแปล...</span>
-      <button class="btn btn-primary btn-sm" onclick="copyMultiLangText()" style="margin-left:auto;gap:4px;white-space:nowrap">📋 Copy โฦษรรณการ</button>
+      <button class="btn btn-primary btn-sm" onclick="copyMultiLangText()" style="margin-left:auto;gap:4px;white-space:nowrap">📋 Copy โฆษณา</button>
     </div>
     <div id="sc-card-container"></div>
   </div>
@@ -2978,7 +2978,7 @@ async function copyMultiLangText(){
   const sep='\n\n——————————\n\n';
   const finalMsg=blocks.join(sep)+'\n\n#Sahai #Pattaya';
   statusEl.style.display='none';
-  if(btn){btn.disabled=false;btn.innerHTML='📋 Copy โฆษณาการ';}
+  if(btn){btn.disabled=false;btn.innerHTML='📋 Copy โฆษณา';}
   navigator.clipboard.writeText(finalMsg)
     .then(()=>showToast('📋 Copy '+langs.length+' ภาษาแล้ว! วางลง Facebook ได้เลย'))
     .catch(()=>{
@@ -3103,40 +3103,56 @@ async function saveShareImage(){
   const card=document.getElementById('sc-printable');
   if(!card){showToast('ไม่พบการ์ด');return;}
   const btn=document.getElementById('sc-img-btn');
-  const origText=btn.textContent;
-  btn.textContent='⏳ กำลังสร้าง...';
+  const origHTML=btn.innerHTML;
+  btn.innerHTML='⏳ กำลังสร้าง...';
   btn.disabled=true;
   try{
-    // Use html2canvas to render the card
     const canvas=await html2canvas(card,{
       scale:2,useCORS:true,allowTaint:true,
-      backgroundColor:'#ffffff',
-      logging:false
+      backgroundColor:'#ffffff',logging:false
     });
     const blob=await new Promise(r=>canvas.toBlob(r,'image/png'));
     const filename=`sahai-${(_scProp?.id||'prop').toLowerCase()}.png`;
-    // Try Web Share API with file (mobile)
-    if(navigator.canShare&&navigator.canShare({files:[new File([blob],filename,{type:'image/png'})]})){
-      await navigator.share({
-        files:[new File([blob],filename,{type:'image/png'})],
-        title:_scProp?.title||'ทรัพย์จาก Sahai',
-      });
-      showToast('แชร์รูปสำเร็จ ✅');
-    } else {
-      // Fallback: download the image
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');
-      a.href=url;a.download=filename;
-      document.body.appendChild(a);a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast('บันทึกรูปสำเร็จ ✅');
+    const file=new File([blob],filename,{type:'image/png'});
+
+    // 1️⃣ Try Clipboard API (Desktop Chrome/Edge — paste ใน LINE/Messenger ได้เลย)
+    if(navigator.clipboard&&window.ClipboardItem){
+      try{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        showToast('📋 คัดลอกรูปแล้ว! วางใน LINE / Messenger ได้เลย (Ctrl+V)');
+        btn.innerHTML=origHTML;btn.disabled=false;
+        return;
+      }catch(clipErr){
+        // clipboard denied or not supported, fall through
+      }
     }
-  } catch(e){
+    // 2️⃣ Try Web Share API (Mobile — เปิด share sheet เลือก LINE/WhatsApp)
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({
+          files:[file],
+          title:_scProp?.title||'ทรัพย์จาก Sahai',
+        });
+        showToast('📤 แชร์รูปสำเร็จ ✅');
+        btn.innerHTML=origHTML;btn.disabled=false;
+        return;
+      }catch(shareErr){
+        if(shareErr.name!=='AbortError') throw shareErr;
+      }
+    }
+    // 3️⃣ Fallback: download
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=filename;
+    document.body.appendChild(a);a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('💾 บันทึกรูปลงเครื่องแล้ว ✅');
+  }catch(e){
     console.error(e);
     showToast('เกิดข้อผิดพลาด: '+e.message);
-  } finally{
-    btn.textContent=origText;btn.disabled=false;
+  }finally{
+    btn.innerHTML=origHTML;btn.disabled=false;
   }
 }
 
