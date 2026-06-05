@@ -3073,19 +3073,20 @@ async function shareAllPhotos(){
     const propId=(p.id||'prop').toLowerCase();
     const files=blobs.map((b,i)=>new File([b],`sahai-${propId}-${i+1}.jpg`,{type:'image/jpeg'}));
 
-    // Try Web Share API with multiple files (mobile)
+    // Mobile: Web Share API → เปิด share sheet ให้เลือก LINE/WhatsApp
+    const isMobileAll=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     let shared=false;
-    if(navigator.canShare&&navigator.canShare({files})){
+    if(isMobileAll&&navigator.canShare&&navigator.canShare({files})){
       try{
         await navigator.share({
           files,
           title:p.title||'รูปทรัพย์จาก Sahai',
-          text:`${p.title||''} · ${p.type||''} · ราคา ฿${(p.price||0).toLocaleString('th-TH')}`,
+          text:`${p.title||''} · ราคา ฿${(p.price||0).toLocaleString('th-TH')}`,
         });
         showToast(`📤 แชร์ ${files.length} รูปสำเร็จ ✅`);
         shared=true;
       }catch(shareErr){
-        // Permission denied or cancelled — fall through to download
+        // user cancelled หรือ error → fall through to download
       }
     }
     if(!shared){
@@ -3125,29 +3126,27 @@ async function saveShareImage(){
     const filename=`sahai-${(_scProp?.id||'prop').toLowerCase()}.png`;
     const file=new File([blob],filename,{type:'image/png'});
 
-    // 1️⃣ Try Clipboard API (Desktop Chrome/Edge — paste ใน LINE/Messenger ได้เลย)
-    if(navigator.clipboard&&window.ClipboardItem){
+    const isMobile=/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    // 1️⃣ Mobile: Web Share API → เปิด share sheet ให้เลือก LINE/WhatsApp/Messenger โดยตรง
+    if(isMobile&&navigator.canShare&&navigator.canShare({files:[file]})){
       try{
-        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
-        showToast('📋 คัดลอกรูปแล้ว! วางใน LINE / Messenger ได้เลย (Ctrl+V)');
-        btn.innerHTML=origHTML;btn.disabled=false;
-        return;
-      }catch(clipErr){
-        // clipboard denied or not supported, fall through
-      }
-    }
-    // 2️⃣ Try Web Share API (Mobile — เปิด share sheet เลือก LINE/WhatsApp)
-    if(navigator.canShare&&navigator.canShare({files:[file]})){
-      try{
-        await navigator.share({
-          files:[file],
-          title:_scProp?.title||'ทรัพย์จาก Sahai',
-        });
+        await navigator.share({files:[file],title:_scProp?.title||'ทรัพย์จาก Sahai'});
         showToast('📤 แชร์รูปสำเร็จ ✅');
         btn.innerHTML=origHTML;btn.disabled=false;
         return;
       }catch(shareErr){
-        // AbortError = user cancelled; other errors = fall through to download
+        // user cancelled หรือ error → fall through to download
+      }
+    }
+    // 2️⃣ Desktop: Copy ไปคลิปบอร์ด (Ctrl+V ใน LINE Desktop / Messenger Web)
+    if(!isMobile&&navigator.clipboard&&window.ClipboardItem){
+      try{
+        await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+        showToast('📋 คัดลอกรูปแล้ว! กด Ctrl+V วางใน LINE Desktop / Messenger ได้เลย');
+        btn.innerHTML=origHTML;btn.disabled=false;
+        return;
+      }catch(clipErr){
+        // fall through to download
       }
     }
     // 3️⃣ Fallback: download (always works)
