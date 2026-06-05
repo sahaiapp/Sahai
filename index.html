@@ -3977,6 +3977,7 @@ function saveNewListing(){
   };
   _addPhotos=[];window._fbSelectedPhoto=null;
   if(mode==='sell'){SELL.push(newProp);}else{newProp.minContract=12;RENT.push(newProp);}
+  saveData();
   renderCards('sell');renderTable('sell');renderCards(mode);renderTable(mode);
   // Add marker to map if map is open and coords set
   if(propMap&&lat&&lng){
