@@ -5124,8 +5124,7 @@ function typeEmoji(t){return TYPE_ICONS[t]||'🏠';}
 function applyMapFilter(){
   allPropsForMap().forEach(p=>{
     const marker=propMarkerMap[p.id];if(!marker)return;
-    const normalType=p.type==='พูลวิลล่า'?'บ้านเดี่ยว':p.type;
-    const typeOk=!mapTypeActive||normalType===mapTypeActive||p.type===mapTypeActive;
+    const typeOk=!mapTypeActive||p.type===mapTypeActive;
     const modeOk=!mapModeActive||p.mode===mapModeActive;
     if(typeOk&&modeOk)marker.addTo(propMap);else propMap.removeLayer(marker);
   });
