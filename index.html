@@ -3288,9 +3288,25 @@ function handlePhotoFiles(files){
         if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
         canvas.width=w;canvas.height=h;
         canvas.getContext('2d').drawImage(img,0,0,w,h);
-        _addPhotos.push(canvas.toDataURL('image/jpeg',0.82));
+        const base64=canvas.toDataURL('image/jpeg',0.82);
+        _addPhotos.push(base64);
         done++;
         if(done===arr.length)updatePhotoGrid();
+        // อัปโหลดขึ้น Firebase Storage ทันที (background)
+        const _user=_fbAuth?_fbAuth.currentUser:null;
+        if(_fbStorage&&_user){
+          canvas.toBlob(async blob=>{
+            try{
+              const ts=Date.now()+'_'+Math.random().toString(36).slice(2,7);
+              const ref=_fbStorage.ref(`photos/${_user.uid}/temp/${ts}.jpg`);
+              await ref.put(blob,{contentType:'image/jpeg'});
+              const httpUrl=await ref.getDownloadURL();
+              // แทนที่ base64 ด้วย HTTP URL ณ index ที่ถูกต้อง
+              const idx=_addPhotos.indexOf(base64);
+              if(idx>=0){_addPhotos[idx]=httpUrl;updatePhotoGrid();}
+            }catch(e){console.warn('Photo bg upload:',e);}
+          },'image/jpeg',0.82);
+        }
       };
       img.src=e.target.result;
     };
@@ -5722,15 +5738,10 @@ function toggleMobileSidebar(){
 
 function doLogout(){
   _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
-  // ล้าง localStorage ทั้งหมดของ user นี้
+  // ไม่ลบ localStorage (uid-specific) — ให้รูปและข้อมูลอยู่สำหรับ login ครั้งต่อไป
+  // key แยกตาม uid แล้ว user อื่น login มาก็ไม่เห็นข้อมูลกัน
   try{
-    const _logoutUid=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
-    if(_logoutUid){
-      localStorage.removeItem('sahai_sell_'+_logoutUid);
-      localStorage.removeItem('sahai_rent_'+_logoutUid);
-      localStorage.removeItem('sahai_leads_'+_logoutUid);
-    }
-    // ล้าง key เก่า (format เดิม) ด้วยเพื่อความปลอดภัย
+    // ล้างเฉพาะ key เก่า (format ก่อนหน้า) เท่านั้น
     ['sahai_sell','sahai_rent','sahai_leads','sahai_cloud_sync','sahai_uid'].forEach(k=>{
       try{localStorage.removeItem(k);}catch(e){}
     });
