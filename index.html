@@ -2047,7 +2047,7 @@ function showAddListing(){
   const nextSellId=genNextId('sell');
   const nextRentId=genNextId('rent');
   addLat=null;addLng=null;addMiniMap=null;addMiniMarker=null;addLocMode='map';
-  _addPhotos=[];window._fbSelectedPhoto=null;
+  _addPhotos=[];_selectedPhotoIdxs=new Set();window._fbSelectedPhoto=null;
 
   document.getElementById('modal-content').innerHTML=`
   <div class="modal-header" style="position:sticky;top:0;z-index:2">
@@ -2722,7 +2722,7 @@ function saveEditListing(){
   if(!isSell&&mq('af-mincontract'))
     data[idx].minContract=parseInt(mq('af-mincontract').value)||12;
   const savedType=_editType;
-  _addPhotos=[];window._fbSelectedPhoto=null;_editType=null;_editId=null;
+  _addPhotos=[];_selectedPhotoIdxs=new Set();window._fbSelectedPhoto=null;_editType=null;_editId=null;
   // Update map marker if needed
   if(propMap)addOrUpdateMarker({...data[idx],mode:savedType});
   saveData();
@@ -3288,12 +3288,11 @@ let _selectedPhotoIdxs=new Set();
 const MAX_PHOTOS=25;
 
 function updatePhotoGrid(){
-  const grid=document.getElementById('photo-preview-grid');
-  const badge=document.getElementById('photo-count-badge');
-  if(!grid)return;
-  badge.textContent=`${_addPhotos.length} / ${MAX_PHOTOS}`;
-  badge.style.display=_addPhotos.length?'inline-flex':'none';
-  grid.innerHTML=_addPhotos.map((src,i)=>`
+  // ใช้ querySelectorAll เพราะอาจมี 2 forms ใน DOM (add + edit modal)
+  const grids=document.querySelectorAll('[id="photo-preview-grid"]');
+  const badges=document.querySelectorAll('[id="photo-count-badge"]');
+  if(!grids.length)return;
+  const html=_addPhotos.map((src,i)=>`
     <div class="photo-item${i===0?' main-photo':''}${_selectedPhotoIdxs.has(i)?' selected':''}" draggable="true"
       data-idx="${i}"
       ondragstart="photoDragStart(event,${i})"
@@ -3304,15 +3303,20 @@ function updatePhotoGrid(){
       <img src="${src}" alt="รูป ${i+1}" style="pointer-events:none">
       <button class="photo-del" onclick="event.stopPropagation();removeAddPhoto(${i})" title="ลบรูปนี้ทันที">✕</button>
     </div>`).join('');
+  grids.forEach(g=>{g.innerHTML=html;});
+  badges.forEach(b=>{
+    b.textContent=`${_addPhotos.length} / ${MAX_PHOTOS}`;
+    b.style.display=_addPhotos.length?'inline-flex':'none';
+  });
   _updatePhotoSelectBar();
 }
 function _updatePhotoSelectBar(){
-  const bar=document.getElementById('photo-select-bar');
-  const cnt=document.getElementById('photo-sel-count');
-  if(!bar)return;
+  const bars=document.querySelectorAll('[id="photo-select-bar"]');
+  const cnts=document.querySelectorAll('[id="photo-sel-count"]');
+  if(!bars.length)return;
   const n=_selectedPhotoIdxs.size;
-  bar.style.display=n>0?'flex':'none';
-  if(cnt)cnt.textContent=`เลือก ${n} รูป`;
+  bars.forEach(b=>{b.style.display=n>0?'flex':'none';});
+  cnts.forEach(c=>{c.textContent=`เลือก ${n} รูป`;});
 }
 function togglePhotoSelect(e,idx){
   if(e.target.classList.contains('photo-del'))return;
@@ -3361,6 +3365,14 @@ function setMainPhoto(idx){
 
 function removeAddPhoto(idx){
   _addPhotos.splice(idx,1);
+  // Remap selected indices after deletion
+  const newSel=new Set();
+  _selectedPhotoIdxs.forEach(i=>{
+    if(i<idx)newSel.add(i);
+    else if(i>idx)newSel.add(i-1);
+    // i===idx: photo deleted, skip
+  });
+  _selectedPhotoIdxs=newSel;
   updatePhotoGrid();
 }
 
@@ -4116,7 +4128,7 @@ function saveNewListing(){
     height:parseFloat(document.getElementById('af-height')?.value)||null,
     phase3:document.getElementById('af-3phase')?.value||null
   };
-  _addPhotos=[];window._fbSelectedPhoto=null;
+  _addPhotos=[];_selectedPhotoIdxs=new Set();window._fbSelectedPhoto=null;
   if(mode==='sell'){SELL.push(newProp);}else{newProp.minContract=12;RENT.push(newProp);}
   saveData();
   renderCards('sell');renderTable('sell');renderCards(mode);renderTable(mode);
