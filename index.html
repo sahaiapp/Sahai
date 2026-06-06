@@ -1585,60 +1585,9 @@ function openInlineStatus(type,id,el){
   }),10);
 }
 
-function applyInlineStatus(type,id,newStatus){
-  const data=type==='sell'?SELL:RENT;
-  const p=data.find(x=>x.id===id);
-  if(!p)return;
-  if(newStatus==='ปิดการขาย/เช่าแล้ว'){
-    // Show close-deal popup
-    const now=new Date();
-    const today_=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
-    const dlg=document.createElement('div');
-    dlg.id='close-deal-dlg';
-    dlg.style.cssText='position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)';
-    dlg.innerHTML=`
-      <div style="background:#fff;border-radius:16px;padding:28px;width:360px;box-shadow:0 16px 48px rgba(0,0,0,.2)">
-        <div style="font-size:17px;font-weight:700;margin-bottom:4px">🔴 ปิดดีล — ${p.id}</div>
-        <div style="font-size:13px;color:#64748b;margin-bottom:20px">${(p.title||'').substring(0,40)}</div>
-        <div style="margin-bottom:14px">
-          <label style="font-size:12px;font-weight:600;color:#475569;margin-bottom:5px;display:block">📅 วันที่ปิดดีล</label>
-          <input id="cdlg-date" class="form-input" value="${today_}" placeholder="วว/ดด/ปปปป" oninput="fmtDateInput(this)" style="font-size:14px">
-        </div>
-        <div style="margin-bottom:22px">
-          <label style="font-size:12px;font-weight:600;color:#475569;margin-bottom:5px;display:block">🔥 ค่าคอมที่ได้จริง (บาท)</label>
-          <input id="cdlg-comm" class="form-input" type="text" inputmode="numeric" placeholder="เช่น 50,000" oninput="formatPriceInput(this)" style="font-size:14px;color:#7c3aed;font-weight:700">
-        </div>
-        <div style="display:flex;gap:10px">
-          <button class="btn btn-primary" style="flex:1" onclick="confirmCloseDeal('${type}','${id}')">✅ บันทึกปิดดีล</button>
-          <button class="btn btn-outline" onclick="document.getElementById('close-deal-dlg').remove()" style="padding:8px 18px">ยกเลิก</button>
-        </div>
-      </div>`;
-    document.body.appendChild(dlg);
-  } else {
-    p.status=newStatus;
-    renderCards(type);renderTable(type);
-    showToast(`✅ เปลี่ยนสถานะเป็น "${newStatus}" แล้ว`);
-  }
-}
+// [removed duplicate applyInlineStatus — see updated version below]
 
-function confirmCloseDeal(type,id){
-  const data=type==='sell'?SELL:RENT;
-  const p=data.find(x=>x.id===id);
-  if(!p)return;
-  const commRaw=(document.getElementById('cdlg-comm').value||'').replace(/[^0-9.]/g,'');
-  if(commRaw) p.actualComm=parseFloat(commRaw)||null;
-  const dateVal=(document.getElementById('cdlg-date').value||'').trim();
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(dateVal)){
-    const[d,m,y]=dateVal.split('/');
-    p.closedDate=`${y}-${m}-${d}`;
-  } else if(/^\d{4}-\d{2}-\d{2}$/.test(dateVal)){
-    p.closedDate=dateVal;
-  }
-  p.status='ปิดการขาย/เช่าแล้ว';
-  document.getElementById('close-deal-dlg').remove();
-  renderCards(type);renderTable(type);
-  showToast('🎉 ปิดดีลสำเร็จ! บันทึกแล้ว');
-}
+// [removed duplicate confirmCloseDeal — see updated version below]
 function filterByField(type,field,val){
   const f=type==='sell'?sellFilter:rentFilter;
   if(field==='minPrice'||field==='maxPrice'){
@@ -4892,6 +4841,13 @@ function saveAgentProfile(){
     const st=document.getElementById('imgbb-status');
     if(st){st.textContent='✅';setTimeout(()=>{if(st)st.textContent='';},3000);}
   }
+  // sync โปรไฟล์ไป Firestore ด้วย — เปิดเครื่องอื่นจะโหลดมาอัตโนมัติ
+  if(_fbDb&&_fbAuth&&_fbAuth.currentUser){
+    _fbDb.collection('users').doc(_fbAuth.currentUser.uid).set(
+      {agentProfile:ap},
+      {merge:true}
+    ).catch(()=>{});
+  }
   showToast('💾 บันทึกโปรไฟล์แล้ว ✅');
   document.getElementById('prof-preview').style.display='none';
 }
@@ -5115,18 +5071,17 @@ async function saveData(){
 
   // ═══ STEP 4: บันทึก Firestore — เฉพาะ HTTP URL photos ═══
   const httpOnly=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
+  const _saveTs=Date.now();
+  // *** บันทึก localUpdatedAt ก่อนส่ง Firestore ***
+  // เพื่อให้ onSnapshot รู้ว่าเราเป็นคนบันทึกเอง → ไม่ re-render ซ้ำ
+  try{
+    localStorage.setItem('sahai_updatedAt_'+user.uid,String(_saveTs));
+    localStorage.setItem('sahai_cloud_sync',String(_saveTs));
+  }catch(e){}
   _fbDb.collection('users').doc(user.uid).set({
-    sell:httpOnly(SELL),rent:httpOnly(RENT),leads:leads,updatedAt:Date.now()
+    sell:httpOnly(SELL),rent:httpOnly(RENT),leads:leads,updatedAt:_saveTs
   },{merge:true})
-  .then(()=>{
-    try{
-      const ts=Date.now().toString();
-      localStorage.setItem('sahai_cloud_sync',ts);
-      const _u=_fbAuth&&_fbAuth.currentUser?_fbAuth.currentUser.uid:'';
-      if(_u) localStorage.setItem('sahai_updatedAt_'+_u,ts);
-    }catch(e){}
-    _fsErrCount=0;
-  })
+  .then(()=>{_fsErrCount=0;})
   .catch(e=>{
     console.warn('Firestore save:',e.code,e.message);
     _fsErrCount=(_fsErrCount||0)+1;
@@ -5163,7 +5118,7 @@ async function loadData(){
         const localUpdatedAt=parseInt(localStorage.getItem('sahai_updatedAt_'+user.uid)||'0');
         // *** Firestore เป็น source of truth เสมอ ***
         // ยกเว้นกรณีเดียว: local ใหม่กว่า AND cloud ไม่มีข้อมูลเลย (login เครื่องแรก)
-        const cloudIsNewer = cloudUpdatedAt >= localUpdatedAt;
+        const cloudIsNewer = cloudUpdatedAt > 0 && cloudUpdatedAt >= localUpdatedAt;
         const cloudHasData = cSell.length>0 || cRent.length>0 || cLeads.length>0;
         const localHasData = SELL.length>0 || RENT.length>0 || leads.length>0;
         if(cloudIsNewer || cloudHasData){
@@ -5188,6 +5143,10 @@ async function loadData(){
             localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
             localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
             if(cloudUpdatedAt) localStorage.setItem('sahai_updatedAt_'+user.uid,String(cloudUpdatedAt));
+          // โหลด agentProfile จาก Firestore (ถ้ามี)
+          if(d.agentProfile && Object.keys(d.agentProfile).length>0){
+            try{localStorage.setItem('sahai_agent_profile',JSON.stringify(d.agentProfile));}catch(e){}
+          }
           }catch(e){}
         } else if(localHasData){
           // local ใหม่กว่า cloud จริงๆ (เช่น offline นาน) → sync ขึ้น cloud
@@ -5500,6 +5459,7 @@ function addOrUpdateMarker(p){
       // also update SELL/RENT arrays
       const s=SELL.find(x=>x.id===p.id);if(s){s.lat=parseFloat(ll.lat.toFixed(6));s.lng=parseFloat(ll.lng.toFixed(6));}
       const r=RENT.find(x=>x.id===p.id);if(r){r.lat=parseFloat(ll.lat.toFixed(6));r.lng=parseFloat(ll.lng.toFixed(6));}
+      saveData();
       showToast(`✅ บันทึกตำแหน่ง ${p.id} แล้ว`);
       renderMepList();updatePinnedCount();
     });
@@ -5527,6 +5487,7 @@ function initMap(){
     addOrUpdateMarker({...p,mode});
     // Re-enable dragging on newly placed marker
     if(propMarkerMap[selectedPropId])propMarkerMap[selectedPropId].dragging.enable();
+    saveData();
     showToast(`📍 วางหมุด ${selectedPropId} แล้ว — ลากเพื่อปรับได้`);
     renderMepList();updatePinnedCount();
   });
@@ -5974,12 +5935,9 @@ function _startFirestoreSync(uid){
     // ตรวจว่าข้อมูลเปลี่ยนจริงๆ ด้วย updatedAt (ป้องกัน re-render จากตัวเอง)
     var cloudUpdatedAt=d.updatedAt||0;
     var localUpdatedAt=parseInt(localStorage.getItem('sahai_updatedAt_'+uid)||'0');
-    // ถ้า cloud ไม่ได้ใหม่กว่า local → เราเป็นคนอัปโหลดเอง ไม่ต้อง re-render
-    if(cloudUpdatedAt>0 && cloudUpdatedAt<=localUpdatedAt){
-      // แต่เช็ค item count ด้วย — กรณีลบทรัพย์ควร sync เสมอ
-      var sameCount=(fSell.length===SELL.length && fRent.length===RENT.length && fLeads.length===leads.length);
-      if(sameCount) return;
-    }
+    // ถ้า cloud ไม่ได้ใหม่กว่า local → เราเป็นคนบันทึกเอง ไม่ต้อง re-render
+    // (localUpdatedAt ถูกตั้งไว้ก่อนส่ง Firestore เสมอ)
+    if(cloudUpdatedAt>0 && localUpdatedAt>0 && cloudUpdatedAt<=localUpdatedAt) return;
     // อัปเดตข้อมูลจาก Firestore
     SELL.length=0;fSell.forEach(function(p){SELL.push(p);});
     RENT.length=0;fRent.forEach(function(p){RENT.push(p);});
@@ -6000,6 +5958,10 @@ function _startFirestoreSync(uid){
         if(saved&&saved.length)p.photos=saved;
       }
     }catch(e){}
+    // sync agentProfile จาก cloud
+    if(d.agentProfile && Object.keys(d.agentProfile||{}).length>0){
+      try{localStorage.setItem('sahai_agent_profile',JSON.stringify(d.agentProfile));}catch(e){}
+    }
     // re-render ทุกอย่าง
     try{
       renderCards('sell');renderTable('sell');
