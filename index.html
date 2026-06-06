@@ -4879,24 +4879,30 @@ async function saveData(){
   const user=_fbAuth?_fbAuth.currentUser:null;
   if(!user)return;
 
-  // อัปโหลด base64 photos ไป Firebase Storage ก่อน (ถ้ามี)
-  if(_fbStorage){
-    const allProps=[...SELL,...RENT];
-    const hasBase64=allProps.some(p=>p.photos&&p.photos.some(u=>u&&u.startsWith('data:')));
-    if(hasBase64){
-      showToast('⬆️ กำลังอัปโหลดรูปไป Cloud...','info');
-      await _uploadAllBase64Photos(allProps, user.uid);
-    }
-  }
-
-  // บันทึก localStorage (มี HTTP URL แล้ว)
+  // ═══ STEP 1: บันทึก localStorage ทันทีก่อนทุกอย่าง (รวม base64 ด้วย) ═══
+  // ป้องกันรูปหายถ้า user refresh ระหว่างที่ upload กำลังทำงาน
   try{
     localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
     localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
     localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
   }catch(e){}
 
-  // บันทึก Firestore — strip base64 ที่ยังไม่ได้ upload (ป้องกัน doc >1MB)
+  // ═══ STEP 2: อัปโหลด base64 → Firebase Storage (background) ═══
+  if(_fbStorage){
+    const allProps=[...SELL,...RENT];
+    const hasBase64=allProps.some(p=>p.photos&&p.photos.some(u=>u&&u.startsWith('data:')));
+    if(hasBase64){
+      showToast('⬆️ กำลังอัปโหลดรูปไป Cloud...','info');
+      await _uploadAllBase64Photos(allProps, user.uid);
+      // อัปเดต localStorage อีกครั้งหลัง upload สำเร็จ (base64 → HTTP URL)
+      try{
+        localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
+        localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
+      }catch(e){}
+    }
+  }
+
+  // ═══ STEP 3: บันทึก Firestore — strip base64 (ป้องกัน doc >1MB) ═══
   const stripB64=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
   _fbDb.collection('users').doc(user.uid).set({
     sell:stripB64(SELL),rent:stripB64(RENT),leads:leads,updatedAt:Date.now()
@@ -4933,9 +4939,22 @@ async function loadData(){
         const d=doc.data();
         const cSell=d.sell||[], cRent=d.rent||[], cLeads=d.leads||[];
         if(cSell.length>SELL.length || cRent.length>RENT.length){
-          // Cloud มีข้อมูลมากกว่า (เปิดจากเครื่องอื่น) → ใช้ cloud
-          SELL.length=0; cSell.forEach(p=>SELL.push(p));
-          RENT.length=0; cRent.forEach(p=>RENT.push(p));
+          // Cloud มีข้อมูลมากกว่า (เปิดจากเครื่องอื่น) → ใช้ cloud แต่ preserve รูปจาก local
+          // สร้าง map ของรูปจาก localStorage (อาจมี base64 หรือ HTTP URL ที่ใหม่กว่า)
+          const localPhotoMap={};
+          SELL.forEach(p=>{if(p.photos&&p.photos.length)localPhotoMap[p.id]=p.photos;});
+          RENT.forEach(p=>{if(p.photos&&p.photos.length)localPhotoMap[p.id]=p.photos;});
+          // merge: ใช้ Firestore data แต่คืนรูปจาก local ถ้ามี
+          SELL.length=0;
+          cSell.forEach(p=>{
+            if(localPhotoMap[p.id]&&localPhotoMap[p.id].length) p.photos=localPhotoMap[p.id];
+            SELL.push(p);
+          });
+          RENT.length=0;
+          cRent.forEach(p=>{
+            if(localPhotoMap[p.id]&&localPhotoMap[p.id].length) p.photos=localPhotoMap[p.id];
+            RENT.push(p);
+          });
           leads.length=0; cLeads.forEach(l=>leads.push(l));
           // sync กลับมา localStorage ด้วย uid-specific key
           try{
