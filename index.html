@@ -4979,10 +4979,17 @@ async function saveData(){
   _fbDb.collection('users').doc(user.uid).set({
     sell:httpOnly(SELL),rent:httpOnly(RENT),leads:leads,updatedAt:Date.now()
   },{merge:true})
-  .then(()=>{try{localStorage.setItem('sahai_cloud_sync',Date.now().toString());}catch(e){}})
+  .then(()=>{
+    try{localStorage.setItem('sahai_cloud_sync',Date.now().toString());}catch(e){}
+    _fsErrCount=0;
+  })
   .catch(e=>{
-    console.error('Firestore save error:',e.code,e.message);
-    showToast('⚠️ บันทึก Cloud ไม่สำเร็จ: '+(e.code||e.message||'unknown'),'warn');
+    console.warn('Firestore save:',e.code,e.message);
+    _fsErrCount=(_fsErrCount||0)+1;
+    // แสดง toast เฉพาะครั้งแรก และเฉพาะ permission error — ไม่รบกวนทุกครั้งที่บันทึก
+    if(_fsErrCount===1&&(e.code==='permission-denied'||e.code==='PERMISSION_DENIED')){
+      _showCloudWarn();
+    }
   });
 }
 async function loadData(){
@@ -5713,6 +5720,19 @@ function switchAuthTab(tab){
 
 /* ===== FIREBASE AUTH & DB ===== */
 let _fbAuth=null,_fbDb=null,_fbStorage=null;
+let _fsErrCount=0; // นับครั้ง Firestore error — แสดง toast แค่ครั้งแรก
+function _showCloudWarn(){
+  // แสดง banner เล็กๆ มุมล่างขวา — ไม่ขึ้นกลางหน้าจอ ไม่รบกวนการใช้งาน
+  const id='_cw_banner';
+  if(document.getElementById(id))return; // มีอยู่แล้ว
+  const el=document.createElement('div');
+  el.id=id;
+  el.innerHTML=`☁️ Cloud sync ปิดอยู่ &nbsp;<a href="https://console.firebase.google.com" target="_blank" style="color:#fff;font-weight:700;text-decoration:underline">แก้ไข Rules</a>&nbsp;<span onclick="document.getElementById('${id}').remove()" style="cursor:pointer;margin-left:8px;opacity:.7">✕</span>`;
+  el.style.cssText='position:fixed;bottom:60px;right:16px;z-index:9999;background:#92400e;color:#fff;padding:8px 14px;border-radius:10px;font-size:12px;box-shadow:0 2px 10px rgba(0,0,0,.2);max-width:280px;line-height:1.5';
+  document.body.appendChild(el);
+  // หายอัตโนมัติใน 10 วินาที
+  setTimeout(()=>{try{el.remove();}catch(e){}},10000);
+}
 // ══════════════════════════════════════════════════════════════
 // IndexedDB Photo Store — เก็บรูปแยก ไม่มีจำกัดขนาด ไม่หายเมื่อ logout
 // ══════════════════════════════════════════════════════════════
