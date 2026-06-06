@@ -5878,6 +5878,26 @@ async function _idbRestorePhotos(uid){
   // re-render หลังรูปโหลดครบ
   try{renderDashRecentList();}catch(e){}
   try{renderCards('sell');renderCards('rent');}catch(e){}
+  // ===== AUTO-UPLOAD base64 → ImgBB → Firestore (ทำให้รูปเห็นได้จากทุกเครื่อง) =====
+  _autoSyncPhotosToCloud(uid);
+}
+
+function _autoSyncPhotosToCloud(uid){
+  if(!_getImgBBKey()||!_fbDb||!uid) return;
+  const allProps=[...SELL,...RENT];
+  const hasBase64=allProps.some(p=>p.photos&&p.photos.some(u=>u&&u.startsWith('data:')));
+  if(!hasBase64) return; // ไม่มี base64 = sync ไปแล้วหรือไม่มีรูป
+  _uploadAllBase64Photos(allProps).then(function(){
+    // หลัง upload ขึ้น ImgBB สำเร็จ → save HTTP URLs ลง Firestore
+    const httpOnly=function(arr){return arr.map(function(p){return Object.assign({},p,{photos:(p.photos||[]).filter(function(u){return u&&u.startsWith('http');})});});};
+    _fbDb.collection('users').doc(uid).set({
+      sell:httpOnly(SELL),rent:httpOnly(RENT),leads:leads,updatedAt:Date.now()
+    },{merge:true}).then(function(){
+      // บันทึก IndexedDB ด้วย HTTP URLs ที่อัปเดตแล้ว
+      _idbSaveAllPhotos(uid);
+      try{renderDashRecentList();renderCards('sell');renderCards('rent');}catch(e){}
+    }).catch(function(){});
+  }).catch(function(){});
 }
 
 (function initFirebase(){
@@ -5955,6 +5975,8 @@ function doLogin(){
       loadData().then(function(){
         try{renderCards('sell');renderTable('sell');renderCards('rent');renderTable('rent');renderLeads();renderDashboard();updateTopnavBadges();updatePinnedCount();}catch(e){}
         showMainApp(userObj);
+        // Re-render dashboard list หลัง 800ms เผื่อ photos โหลดจาก IndexedDB ไม่ทัน
+        setTimeout(function(){try{renderDashRecentList();}catch(e){}},800);
       }).catch(function(e){
         console.warn('loadData err:',e);
         showMainApp(userObj);
