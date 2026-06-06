@@ -5070,7 +5070,7 @@ async function saveData(){
     }
   });
 }
-async function loadData(){
+async async function loadData(){
   // ===== STEP 1: โหลด localStorage ด้วย uid-specific key =====
   try{
     const _loadUser=_fbAuth?_fbAuth.currentUser:null;
@@ -5886,6 +5886,31 @@ async function _idbRestorePhotos(uid){
   try{_fbStorage=firebase.storage();}catch(e){console.warn('Firebase Storage not available:',e);_fbStorage=null;}
 })();
 
+// ===== AUTH STATE LISTENER =====
+(function _setupAuth(){
+  if(!_fbAuth){setTimeout(_setupAuth,200);return;}
+  _fbAuth.onAuthStateChanged(async function(user){
+    if(user){
+      var userObj={uid:user.uid,email:user.email,name:user.displayName||user.email};
+      _currentUser=userObj;
+      try{await loadData();}catch(e){console.warn('loadData:',e);}
+      try{
+        renderCards('sell');renderTable('sell');
+        renderCards('rent');renderTable('rent');
+        renderLeads();renderDashboard();
+        updateTopnavBadges();updatePinnedCount();
+      }catch(e){}
+      showMainApp(userObj);
+    } else {
+      _currentUser=null;
+      var as=document.getElementById('auth-screen');
+      var ma=document.getElementById('main-app');
+      if(as)as.style.display='flex';
+      if(ma)ma.style.display='none';
+    }
+  });
+})();
+
 function _fbErrMsg(code){
   const m={'auth/user-not-found':'ไม่พบอีเมลนี้ในระบบ','auth/wrong-password':'รหัสผ่านไม่ถูกต้อง','auth/invalid-credential':'อีเมลหรือรหัสผ่านไม่ถูกต้อง','auth/email-already-in-use':'อีเมลนี้มีผู้ใช้งานแล้ว','auth/weak-password':'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร','auth/invalid-email':'รูปแบบอีเมลไม่ถูกต้อง','auth/too-many-requests':'ลองใหม่ภายหลัง (ล็อกอินผิดบ่อยเกินไป)'};
   return m[code]||'เกิดข้อผิดพลาด กรุณาลองใหม่';
@@ -6217,4 +6242,13 @@ function clearAllProperties(){
   showToast('ลบข้อมูลทั้งหมดแล้ว');
 }
 function clearProperties(mode){
-  if(!confirm('ยืนยันลบทรัพย์?
+  if(!confirm('ยืนยันลบทรัพย์?'))return;
+  const target=mode==='sell'?SELL:RENT;
+  target.length=0;saveData();
+  renderCards(mode);renderTable(mode);
+  renderDashboard();updatePinnedCount();
+  showToast('ลบทรัพย์ ('+mode+') แล้ว');
+}
+</script>
+</body>
+</html>
