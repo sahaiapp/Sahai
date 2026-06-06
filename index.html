@@ -434,8 +434,12 @@ tr.lead-today td{background:#FFFBEB}
 .photo-item:active{cursor:grabbing}
 .photo-item:hover{transform:scale(1.03);box-shadow:0 4px 12px rgba(0,0,0,.15)}
 .photo-item img{width:100%;height:100%;object-fit:cover;display:block}
-.photo-item .photo-del{position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;opacity:0;transition:.12s}
-.photo-item:hover .photo-del{opacity:1}
+.photo-item .photo-del{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:rgba(220,38,38,.85);color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;opacity:1;transition:.12s;box-shadow:0 1px 4px rgba(0,0,0,.3);z-index:2}
+.photo-item .photo-del:hover{background:rgba(185,28,28,1);transform:scale(1.15)}
+.photo-item.selected{border-color:#2563EB;border-width:3px}
+.photo-item.selected::before{content:'✓';position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:#2563EB;color:#fff;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;z-index:3;line-height:20px;text-align:center}
+.photo-item.selected img{opacity:.75}
+#photo-select-bar{display:none;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:#EFF6FF;border-radius:10px;border:1px solid #BFDBFE;flex-wrap:wrap}
 .photo-item.main-photo{border-color:var(--primary)}
 .photo-item.main-photo::after{content:'หลัก';position:absolute;bottom:0;left:0;right:0;background:var(--primary);color:#fff;font-size:10px;text-align:center;padding:2px 0;font-weight:600}
 .photo-count-badge{display:inline-flex;align-items:center;gap:4px;background:var(--primary-light);color:var(--primary);border-radius:10px;padding:2px 8px;font-size:11px;font-weight:600;margin-left:8px}
@@ -2369,6 +2373,12 @@ function showAddListing(){
         <div style="font-size:11px;color:var(--text3);margin-top:2px">รองรับสูงสุด 25 รูป • JPG, PNG, WEBP • รูปแรกจะเป็นรูปหน้าปก</div>
       </div>
       <div class="photo-grid" id="photo-preview-grid"></div>
+      <div id="photo-select-bar" style="display:none;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:#EFF6FF;border-radius:10px;border:1px solid #BFDBFE;flex-wrap:wrap">
+        <span id="photo-sel-count" style="font-size:13px;font-weight:600;color:#1D4ED8">เลือก 0 รูป</span>
+        <button class="btn btn-outline btn-sm" onclick="selectAllPhotos()" style="font-size:12px;padding:4px 10px">เลือกทั้งหมด</button>
+        <button class="btn btn-outline btn-sm" onclick="clearPhotoSelection()" style="font-size:12px;padding:4px 10px">ยกเลิก</button>
+        <button class="btn btn-sm" onclick="deleteSelectedPhotos()" style="font-size:12px;padding:4px 10px;background:#DC2626;color:#fff;border:none;border-radius:8px;cursor:pointer">🗑 ลบที่เลือก</button>
+      </div>
     </div>
   </div>
   </div><!-- /add-section-manual -->
@@ -2603,6 +2613,12 @@ function openEditListing(type,id){
         <div style="font-size:11px;color:var(--text3)">รูปแรก = หน้าปก • สูงสุด 25 รูป</div>
       </div>
       <div class="photo-grid" id="photo-preview-grid"></div>
+      <div id="photo-select-bar" style="display:none;align-items:center;gap:8px;margin-top:8px;padding:8px 10px;background:#EFF6FF;border-radius:10px;border:1px solid #BFDBFE;flex-wrap:wrap">
+        <span id="photo-sel-count" style="font-size:13px;font-weight:600;color:#1D4ED8">เลือก 0 รูป</span>
+        <button class="btn btn-outline btn-sm" onclick="selectAllPhotos()" style="font-size:12px;padding:4px 10px">เลือกทั้งหมด</button>
+        <button class="btn btn-outline btn-sm" onclick="clearPhotoSelection()" style="font-size:12px;padding:4px 10px">ยกเลิก</button>
+        <button class="btn btn-sm" onclick="deleteSelectedPhotos()" style="font-size:12px;padding:4px 10px;background:#DC2626;color:#fff;border:none;border-radius:8px;cursor:pointer">🗑 ลบที่เลือก</button>
+      </div>
     </div>
   </div>
   <div class="modal-actions">
@@ -3268,6 +3284,7 @@ function onModeChange(mode){
 
 /* ===== PHOTO UPLOAD ===== */
 let _addPhotos=[];
+let _selectedPhotoIdxs=new Set();
 const MAX_PHOTOS=25;
 
 function updatePhotoGrid(){
@@ -3277,24 +3294,43 @@ function updatePhotoGrid(){
   badge.textContent=`${_addPhotos.length} / ${MAX_PHOTOS}`;
   badge.style.display=_addPhotos.length?'inline-flex':'none';
   grid.innerHTML=_addPhotos.map((src,i)=>`
-    <div class="photo-item${i===0?' main-photo':''}" draggable="true"
+    <div class="photo-item${i===0?' main-photo':''}${_selectedPhotoIdxs.has(i)?' selected':''}" draggable="true"
       data-idx="${i}"
       ondragstart="photoDragStart(event,${i})"
       ondragover="photoDragOver(event)"
       ondrop="photoDrop(event,${i})"
       ondragend="photoDragEnd()"
-      title="${i===0?'รูปหน้าปก':'คลิกเพื่อตั้งเป็นหน้าปก • ลากเพื่อเรียงลำดับ'}"
-      onclick="setMainPhoto(${i})">
+      onclick="togglePhotoSelect(event,${i})">
       <img src="${src}" alt="รูป ${i+1}" style="pointer-events:none">
-      <button class="photo-del" onclick="event.stopPropagation();removeAddPhoto(${i})" title="ลบรูป">✕</button>
-      ${i===0?'':'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:.15s;background:rgba(37,99,235,.4);color:#fff;font-size:10px;font-weight:700" class="cover-hint">⭐ หน้าปก</div>'}
+      <button class="photo-del" onclick="event.stopPropagation();removeAddPhoto(${i})" title="ลบรูปนี้ทันที">✕</button>
     </div>`).join('');
-  // hover show cover-hint
-  grid.querySelectorAll('.cover-hint').forEach(h=>{
-    const item=h.parentElement;
-    item.addEventListener('mouseenter',()=>{h.style.opacity='1';});
-    item.addEventListener('mouseleave',()=>{h.style.opacity='0';});
-  });
+  _updatePhotoSelectBar();
+}
+function _updatePhotoSelectBar(){
+  const bar=document.getElementById('photo-select-bar');
+  const cnt=document.getElementById('photo-sel-count');
+  if(!bar)return;
+  const n=_selectedPhotoIdxs.size;
+  bar.style.display=n>0?'flex':'none';
+  if(cnt)cnt.textContent=`เลือก ${n} รูป`;
+}
+function togglePhotoSelect(e,idx){
+  if(e.target.classList.contains('photo-del'))return;
+  if(_selectedPhotoIdxs.has(idx)){_selectedPhotoIdxs.delete(idx);}
+  else{_selectedPhotoIdxs.add(idx);}
+  const grid=document.getElementById('photo-preview-grid');
+  if(grid){grid.querySelectorAll('.photo-item').forEach((el,i)=>{el.classList.toggle('selected',_selectedPhotoIdxs.has(i));});}
+  _updatePhotoSelectBar();
+}
+function selectAllPhotos(){_selectedPhotoIdxs=new Set(_addPhotos.map((_,i)=>i));updatePhotoGrid();}
+function clearPhotoSelection(){_selectedPhotoIdxs=new Set();updatePhotoGrid();}
+function deleteSelectedPhotos(){
+  if(!_selectedPhotoIdxs.size)return;
+  const n=_selectedPhotoIdxs.size;
+  [..._selectedPhotoIdxs].sort((a,b)=>b-a).forEach(i=>_addPhotos.splice(i,1));
+  _selectedPhotoIdxs=new Set();
+  updatePhotoGrid();
+  showToast(`🗑 ลบ ${n} รูปแล้ว`);
 }
 let _dragSrc=-1;
 function photoDragStart(e,idx){
@@ -6169,103 +6205,4 @@ function clearAllProperties(){
   showToast('ลบข้อมูลทั้งหมดแล้ว');
 }
 function clearProperties(mode){
-  if(!confirm('ยืนยันลบทรัพย์?'))return;
-  if(mode==='sell')SELL.length=0;else RENT.length=0;
-  saveData();renderCards(mode);renderTable(mode);renderDashboard();updatePinnedCount();
-  showToast('ลบทรัพย์'+mode+'แล้ว');
-}
-
-/* ===== INIT ===== */
-function _renderAll(){
-  try{renderCards('sell');renderTable('sell');renderCards('rent');renderTable('rent');renderPipeline();renderDashboard();renderRecentOnly();updateFollowupBadge();}catch(e){}
-  // ซ่อน topbar search บน dashboard ตอนเริ่มต้น
-  var tsw=document.getElementById('topbar-search-wrap');
-  if(tsw) tsw.style.visibility='hidden';
-}
-
-function initApp(){
-  document.getElementById('auth-screen').style.display='flex';
-  document.getElementById('main-app').style.display='none';
-  if(!_fbAuth){
-    // Firebase ยังไม่โหลด — fallback localStorage
-    try{
-      const s=localStorage.getItem('sahai_sell');const r=localStorage.getItem('sahai_rent');const ld=localStorage.getItem('sahai_leads');
-      if(s){const a=JSON.parse(s);SELL.length=0;a.forEach(p=>SELL.push(p));}
-      if(r){const a=JSON.parse(r);RENT.length=0;a.forEach(p=>RENT.push(p));}
-      if(ld){const a=JSON.parse(ld);leads.length=0;a.forEach(l=>leads.push(l));}
-    }catch(e){}
-    return;
-  }
-  _fbAuth.onAuthStateChanged(async fbUser=>{
-    if(fbUser){
-      const user={id:fbUser.uid,name:fbUser.displayName||fbUser.email.split('@')[0],email:fbUser.email};
-      showMainApp(user);
-      await loadData();
-      _renderAll();
-    } else {
-      _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
-      try{
-        // ล้าง key เก่า (format เดิม)
-        ['sahai_sell','sahai_rent','sahai_leads','sahai_cloud_sync','sahai_uid'].forEach(k=>{
-          try{localStorage.removeItem(k);}catch(e){}
-        });
-      }catch(e){}
-      document.getElementById('auth-screen').style.display='flex';
-      document.getElementById('main-app').style.display='none';
-    }
-  });
-}
-
-initApp();
-
-/* ===== FEEDBACK ===== */
-let _fbRating=0;
-
-function showFeedback(){
-  const ov=document.getElementById('modal');
-  const mc=document.getElementById('modal-content');
-  ov.style.display='flex';requestAnimationFrame(()=>ov.classList.add('show'));
-  _fbRating=0;
-  mc.innerHTML=`
-  <div class="modal-header" style="position:sticky;top:0;z-index:2">
-    <div><div class="modal-title">Feedback Sahai</div></div>
-    <button class="modal-close" onclick="closeModal()">X</button>
-  </div>
-  <div class="modal-body" style="max-width:480px;margin:0 auto">
-    <div style="text-align:center;padding:20px 0 16px">
-      <div id="fb-stars" style="display:flex;justify-content:center;gap:8px">
-        ${[1,2,3,4,5].map(i=>`<span data-v="${i}" onclick="setFbRating(${i})" style="font-size:36px;cursor:pointer;filter:grayscale(1);opacity:.4">*</span>`).join('')}
-      </div>
-    </div>
-    <textarea id="fb-comment" rows="3" placeholder="..." style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;resize:vertical"></textarea>
-    <div style="display:flex;gap:10px;margin-top:12px">
-      <button class="btn btn-outline" onclick="closeModal()" style="flex:1">ข้าม</button>
-      <button class="btn btn-primary" onclick="submitFeedback()" style="flex:2">ส่ง</button>
-    </div>
-  </div>`;
-}
-
-function setFbRating(v){
-  _fbRating=v;
-  document.querySelectorAll('#fb-stars span').forEach(s=>{
-    const sv=parseInt(s.dataset.v);
-    s.style.filter=sv<=v?'grayscale(0)':'grayscale(1)';
-    s.style.opacity=sv<=v?'1':'.4';
-  });
-}
-
-function submitFeedback(){
-  if(!_fbRating){showToast('กรุณาให้คะแนนก่อน');return;}
-  const comment=(document.getElementById('fb-comment')||{}).value||'';
-  try{
-    const prev=JSON.parse(localStorage.getItem('sahai_feedback')||'[]');
-    prev.push({rating:_fbRating,comment,ts:new Date().toISOString(),user:_currentUser?_currentUser.email:''});
-    localStorage.setItem('sahai_feedback',JSON.stringify(prev));
-  }catch(e){}
-  closeModal();
-  showToast('ขอบคุณสำหรับ Feedback ครับ! 🌟');
-  _fbRating=0;
-}
-</script>
-</body>
-</html>
+  if(!confirm('ยืนยันลบทรัพย์?
