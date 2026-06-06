@@ -10,6 +10,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -4841,30 +4842,71 @@ function _lsKey(k){
   const uid=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
   return uid?'sahai_'+k+'_'+uid:'';
 }
-function saveData(){
-  const user=_fbAuth?_fbAuth.currentUser:null;
-  if(!user)return; // ไม่บันทึกถ้าไม่ได้ login
-  // 1. บันทึก localStorage ด้วย key เฉพาะของ user นี้
+// อัปโหลดรูป base64 ไป Firebase Storage → คืน HTTP URL
+async function _uploadPhotoIfBase64(dataUrl, uid, propId, idx){
+  if(!dataUrl||!dataUrl.startsWith('data:')||!_fbStorage) return dataUrl;
   try{
-    const k=_lsKey('');
-    if(k){
-      localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
-      localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
-      localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
+    const res=await fetch(dataUrl);
+    const blob=await res.blob();
+    const ext=blob.type==='image/png'?'png':'jpg';
+    const ref=_fbStorage.ref(`photos/${uid}/${propId}/${idx}.${ext}`);
+    await ref.put(blob,{contentType:blob.type});
+    return await ref.getDownloadURL();
+  }catch(e){
+    console.warn('Photo upload fail:',e);
+    return dataUrl; // fallback: คงเป็น base64 ไว้ก่อน
+  }
+}
+
+// อัปโหลดรูป base64 ทุกชิ้นใน array
+async function _uploadAllBase64Photos(props, uid){
+  for(const p of props){
+    if(!p.photos||!p.photos.some(u=>u&&u.startsWith('data:'))) continue;
+    const newPhotos=[];
+    for(let i=0;i<p.photos.length;i++){
+      const url=await _uploadPhotoIfBase64(p.photos[i],uid,p.id,i);
+      newPhotos.push(url);
     }
+    p.photos=newPhotos;
+    // อัปเดตใน SELL/RENT array จริงด้วย
+    const arr=SELL.find(x=>x.id===p.id)?SELL:RENT;
+    const real=arr.find(x=>x.id===p.id);
+    if(real) real.photos=newPhotos;
+  }
+}
+
+async function saveData(){
+  const user=_fbAuth?_fbAuth.currentUser:null;
+  if(!user)return;
+
+  // อัปโหลด base64 photos ไป Firebase Storage ก่อน (ถ้ามี)
+  if(_fbStorage){
+    const allProps=[...SELL,...RENT];
+    const hasBase64=allProps.some(p=>p.photos&&p.photos.some(u=>u&&u.startsWith('data:')));
+    if(hasBase64){
+      showToast('⬆️ กำลังอัปโหลดรูปไป Cloud...','info');
+      await _uploadAllBase64Photos(allProps, user.uid);
+    }
+  }
+
+  // บันทึก localStorage (มี HTTP URL แล้ว)
+  try{
+    localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
+    localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
+    localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
   }catch(e){}
-  // 2. บันทึก Firestore (cloud sync)
+
+  // บันทึก Firestore — strip base64 ที่ยังไม่ได้ upload (ป้องกัน doc >1MB)
   const stripB64=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
   _fbDb.collection('users').doc(user.uid).set({
     sell:stripB64(SELL),rent:stripB64(RENT),leads:leads,updatedAt:Date.now()
   },{merge:true})
   .then(()=>{
-    // อัปเดต localStorage sync timestamp
     try{localStorage.setItem('sahai_cloud_sync',Date.now().toString());}catch(e){}
   })
   .catch(e=>{
-    console.error('Firestore save error:',e.code, e.message);
-    showToast('⚠️ บันทึก Cloud ไม่สำเร็จ: '+( e.code||e.message||'unknown'),'warn');
+    console.error('Firestore save error:',e.code,e.message);
+    showToast('⚠️ บันทึก Cloud ไม่สำเร็จ: '+(e.code||e.message||'unknown'),'warn');
   });
 }
 async function loadData(){
@@ -5576,7 +5618,7 @@ function switchAuthTab(tab){
 }
 
 /* ===== FIREBASE AUTH & DB ===== */
-let _fbAuth=null,_fbDb=null;
+let _fbAuth=null,_fbDb=null,_fbStorage=null;
 (function initFirebase(){
   const cfg={
     apiKey:"AIzaSyAujT1HVRhtzjJmoftxuMQd4-Z38O6FjZc",
@@ -5587,6 +5629,7 @@ let _fbAuth=null,_fbDb=null;
     appId:"1:187527244945:web:d51bff9c71868ccbae2330"
   };
   try{firebase.initializeApp(cfg);_fbAuth=firebase.auth();_fbDb=firebase.firestore();}catch(e){console.warn('Firebase init:',e);}
+  try{_fbStorage=firebase.storage();}catch(e){console.warn('Firebase Storage not available:',e);_fbStorage=null;}
 })();
 
 function _fbErrMsg(code){
