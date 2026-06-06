@@ -5934,12 +5934,29 @@ function doLogin(){
   const email=(document.getElementById('login-email').value||'').trim().toLowerCase();
   const pass=document.getElementById('login-pass').value||'';
   const errEl=document.getElementById('login-error');
-  const btn=document.querySelector('#auth-screen .btn-primary');
+  const btn=document.getElementById('btn-login');
   if(!email||!pass){errEl.textContent='กรุณากรอกอีเมลและรหัสผ่าน';errEl.style.display='';return;}
   if(btn){btn.textContent='กำลังเข้าสู่ระบบ...';btn.disabled=true;}
   errEl.style.display='none';
+  if(!_fbAuth){errEl.textContent='Firebase ยังไม่พร้อม กรุณารอสักครู่';errEl.style.display='';if(btn){btn.textContent='เข้าสู่ระบบ';btn.disabled=false;}return;}
   _fbAuth.signInWithEmailAndPassword(email,pass)
-    .catch(e=>{errEl.textContent=_fbErrMsg(e.code);errEl.style.display='';if(btn){btn.textContent='เข้าสู่ระบบ';btn.disabled=false;}});
+    .then(function(cred){
+      var u=cred.user;
+      var userObj={uid:u.uid,email:u.email,name:u.displayName||u.email};
+      _currentUser=userObj;
+      loadData().then(function(){
+        try{renderCards('sell');renderTable('sell');renderCards('rent');renderTable('rent');renderLeads();renderDashboard();updateTopnavBadges();updatePinnedCount();}catch(e){}
+        showMainApp(userObj);
+      }).catch(function(e){
+        console.warn('loadData err:',e);
+        showMainApp(userObj);
+      });
+    })
+    .catch(function(e){
+      errEl.textContent=_fbErrMsg(e.code);
+      errEl.style.display='';
+      if(btn){btn.textContent='เข้าสู่ระบบ';btn.disabled=false;}
+    });
 }
 
 function doRegister(){
