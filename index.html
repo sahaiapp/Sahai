@@ -1257,7 +1257,8 @@ textarea.form-input{resize:vertical;min-height:72px}
               <textarea class="form-input" id="prof-footer" rows="3" placeholder="เช่น ยินดีให้คำปรึกษาฟรี พร้อมพาชมทรัพย์ทุกวัน 🏡"></textarea>
             </div>
           </div>
-          <div style="border-top:1px solid var(--border);padding-top:24px;margin-bottom:28px">
+          <div style="display:none" id="imgbb-section">
+            <div style="border-top:1px solid var(--border);padding-top:24px;margin-bottom:28px">
             <div class="ds-title" style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">☁️ รูปภาพ Cloud Sync</div>
             <div style="font-size:12px;color:var(--text3);margin-bottom:12px">ใส่ ImgBB API Key เพื่อให้รูปภาพ sync ข้ามเครื่องได้ — <a href="https://api.imgbb.com" target="_blank" style="color:var(--primary)">ขอ Key ฟรีที่ api.imgbb.com</a></div>
             <div class="form-group" style="margin:0">
@@ -1267,6 +1268,7 @@ textarea.form-input{resize:vertical;min-height:72px}
                 <span id="imgbb-status" style="font-size:18px;flex-shrink:0"></span>
               </div>
               <div style="font-size:11px;color:var(--text3);margin-top:4px">Key จะเก็บในเครื่องนี้เท่านั้น ปลอดภัย 🔒</div>
+            </div>
             </div>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -5870,6 +5872,9 @@ async function _idbRestorePhotos(uid){
     const saved=await _idbGet(uid+'_'+p.id);
     if(saved&&saved.length) p.photos=saved;
   }
+  // re-render หลังรูปโหลดครบ
+  try{renderDashRecentList();}catch(e){}
+  try{renderCards('sell');renderCards('rent');}catch(e){}
 }
 
 (function initFirebase(){
