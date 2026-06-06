@@ -4764,7 +4764,7 @@ function initProfilePage(){
 function loadAgentProfile(){
   try{return JSON.parse(localStorage.getItem('sahai_agent_profile')||'{}');}catch{return{};}
 }
-function _getImgBBKey(){return localStorage.getItem('sahai_imgbb_key')||'';}
+function _getImgBBKey(){return localStorage.getItem('sahai_imgbb_key')||'d759899d9905943c26113a8888c1add7';}
 function saveAgentProfile(){
   const ap={
     name:document.getElementById('prof-name').value.trim(),
