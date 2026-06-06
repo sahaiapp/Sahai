@@ -4573,19 +4573,22 @@ function updateFollowupBadge(){
 function renderDashRecentList(){
   const el=document.getElementById('dash-recent-list');
   if(!el)return;
-  const all=[...SELL.slice(0,4).map(p=>({p,mode:'sell'})),...RENT.slice(0,4).map(p=>({p,mode:'rent'}))];
+  // ใช้ทรัพย์ทั้งหมด เรียงตาม ID จากมากไปน้อย (ใหม่สุดก่อน)
+  const all=[...SELL.map(p=>({p,mode:'sell'})),...RENT.map(p=>({p,mode:'rent'}))];
   const sorted=all.sort((a,b)=>(b.p.id||'').localeCompare(a.p.id||'')).slice(0,8);
   if(!sorted.length){
     el.innerHTML=`<div style="text-align:center;padding:24px 0;color:var(--text3);font-size:13px">ยังไม่มีทรัพย์<br><span class="link-sm" onclick="openSmartPaste()">+ เพิ่มทรัพย์แรก</span></div>`;
     return;
   }
   el.innerHTML=sorted.map(({p,mode})=>{
-    const icon=p.photos&&p.photos.length
-      ?`<img src="${p.photos[0]}" style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.outerHTML='<div class=\'dash-recent-icon\'>${mode==='sell'?'🏡':'🔑'}</div>'">`
-      :`<div class="dash-recent-icon">${mode==='sell'?'🏡':'🔑'}</div>`;
+    const photo=p.photos&&p.photos.find(u=>u&&(u.startsWith('http')||u.startsWith('data:')));
+    const icon=photo
+      ?`<img src="${photo}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+      :'';
+    const fallback=`<div class="dash-recent-icon" style="${photo?'display:none':''}">${mode==='sell'?'🏡':'🔑'}</div>`;
     const price=mode==='sell'?`฿${fmt(p.price)}`:`฿${fmt(p.price)}/ด.`;
     return `<div class="dash-recent-item" onclick="showPage('${mode}',document.getElementById('nav-${mode}'));openDetail('${mode}','${p.id}')">
-      ${icon}
+      <div style="position:relative;flex-shrink:0">${icon}${fallback}</div>
       <div class="dash-recent-info">
         <div class="dash-recent-name">${p.title}</div>
         <div class="dash-recent-price">${price}</div>
