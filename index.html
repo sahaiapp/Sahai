@@ -2660,6 +2660,9 @@ function confirmDeleteListing(type,id){
   const data=type==='sell'?SELL:RENT;
   const idx=data.findIndex(x=>x.id===id);
   if(idx>=0)data.splice(idx,1);
+  // ลบรูปจาก IndexedDB ด้วย
+  const _u=_fbAuth&&_fbAuth.currentUser?_fbAuth.currentUser.uid:'';
+  if(_u) _idbDel(_u+'_'+id);
   saveData(); // บันทึกหลังลบ
   // Remove map marker
   if(propMap&&propMarkerMap[id]){propMap.removeLayer(propMarkerMap[id]);delete propMarkerMap[id];}
@@ -4895,37 +4898,39 @@ async function saveData(){
   const user=_fbAuth?_fbAuth.currentUser:null;
   if(!user)return;
 
-  // ═══ STEP 1: บันทึก localStorage ทันทีก่อนทุกอย่าง (รวม base64 ด้วย) ═══
-  // ป้องกันรูปหายถ้า user refresh ระหว่างที่ upload กำลังทำงาน
+  // ═══ STEP 1: บันทึกรูปลง IndexedDB ทันที (ไม่มีจำกัดขนาด, ไม่หายเมื่อ logout) ═══
+  await _idbSaveAllPhotos(user.uid);
+
+  // ═══ STEP 2: บันทึก localStorage — เฉพาะ property data (ไม่รวมรูป) ═══
+  const noPhotos=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
   try{
-    localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
-    localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
+    localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(noPhotos(SELL)));
+    localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(noPhotos(RENT)));
     localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
   }catch(e){}
 
-  // ═══ STEP 2: อัปโหลด base64 → Firebase Storage (background) ═══
+  // ═══ STEP 3: อัปโหลด base64 → Firebase Storage (background, ถ้ามี) ═══
   if(_fbStorage){
     const allProps=[...SELL,...RENT];
     const hasBase64=allProps.some(p=>p.photos&&p.photos.some(u=>u&&u.startsWith('data:')));
     if(hasBase64){
-      showToast('⬆️ กำลังอัปโหลดรูปไป Cloud...','info');
-      await _uploadAllBase64Photos(allProps, user.uid);
-      // อัปเดต localStorage อีกครั้งหลัง upload สำเร็จ (base64 → HTTP URL)
-      try{
-        localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
-        localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
-      }catch(e){}
+      _uploadAllBase64Photos(allProps,user.uid).then(()=>{
+        // อัปเดต IndexedDB และ Firestore หลัง upload สำเร็จ
+        _idbSaveAllPhotos(user.uid);
+        const onlyHttp=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
+        _fbDb.collection('users').doc(user.uid).set({
+          sell:onlyHttp(SELL),rent:onlyHttp(RENT),leads:leads,updatedAt:Date.now()
+        },{merge:true}).catch(()=>{});
+      }).catch(()=>{});
     }
   }
 
-  // ═══ STEP 3: บันทึก Firestore — strip base64 (ป้องกัน doc >1MB) ═══
-  const stripB64=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
+  // ═══ STEP 4: บันทึก Firestore — เฉพาะ HTTP URL photos ═══
+  const httpOnly=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
   _fbDb.collection('users').doc(user.uid).set({
-    sell:stripB64(SELL),rent:stripB64(RENT),leads:leads,updatedAt:Date.now()
+    sell:httpOnly(SELL),rent:httpOnly(RENT),leads:leads,updatedAt:Date.now()
   },{merge:true})
-  .then(()=>{
-    try{localStorage.setItem('sahai_cloud_sync',Date.now().toString());}catch(e){}
-  })
+  .then(()=>{try{localStorage.setItem('sahai_cloud_sync',Date.now().toString());}catch(e){}})
   .catch(e=>{
     console.error('Firestore save error:',e.code,e.message);
     showToast('⚠️ บันทึก Cloud ไม่สำเร็จ: '+(e.code||e.message||'unknown'),'warn');
@@ -4996,6 +5001,11 @@ async function loadData(){
   }catch(e){
     console.warn('Firestore load:',e.code||e.message);
   }
+  // ═══ STEP 3: คืนรูปจาก IndexedDB (เสมอ — รูปถูกเก็บแยก) ═══
+  try{
+    const _uid2=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
+    if(_uid2) await _idbRestorePhotos(_uid2);
+  }catch(e){}
 }
 function exportListings(type){
   const data = type==='sell' ? SELL : RENT;
@@ -5654,6 +5664,67 @@ function switchAuthTab(tab){
 
 /* ===== FIREBASE AUTH & DB ===== */
 let _fbAuth=null,_fbDb=null,_fbStorage=null;
+// ══════════════════════════════════════════════════════════════
+// IndexedDB Photo Store — เก็บรูปแยก ไม่มีจำกัดขนาด ไม่หายเมื่อ logout
+// ══════════════════════════════════════════════════════════════
+let _idb=null;
+function _initIDB(){
+  return new Promise(res=>{
+    try{
+      const req=indexedDB.open('sahai_photos_v1',1);
+      req.onupgradeneeded=e=>{
+        try{e.target.result.createObjectStore('photos');}catch(ex){}
+      };
+      req.onsuccess=e=>{_idb=e.target.result;res();};
+      req.onerror=()=>{console.warn('IndexedDB not available');res();};
+    }catch(e){res();}
+  });
+}
+function _idbPut(key,val){
+  return new Promise(res=>{
+    if(!_idb)return res();
+    try{
+      const tx=_idb.transaction('photos','readwrite');
+      tx.objectStore('photos').put(val,key);
+      tx.oncomplete=res;tx.onerror=res;
+    }catch(e){res();}
+  });
+}
+function _idbGet(key){
+  return new Promise(res=>{
+    if(!_idb)return res(null);
+    try{
+      const tx=_idb.transaction('photos','readonly');
+      const req=tx.objectStore('photos').get(key);
+      req.onsuccess=()=>res(req.result||null);
+      req.onerror=()=>res(null);
+    }catch(e){res(null);}
+  });
+}
+function _idbDel(key){
+  return new Promise(res=>{
+    if(!_idb)return res();
+    try{
+      const tx=_idb.transaction('photos','readwrite');
+      tx.objectStore('photos').delete(key);
+      tx.oncomplete=res;tx.onerror=res;
+    }catch(e){res();}
+  });
+}
+async function _idbSaveAllPhotos(uid){
+  const all=[...SELL,...RENT];
+  for(const p of all){
+    if(p.photos&&p.photos.length) await _idbPut(uid+'_'+p.id, p.photos);
+  }
+}
+async function _idbRestorePhotos(uid){
+  const all=[...SELL,...RENT];
+  for(const p of all){
+    const saved=await _idbGet(uid+'_'+p.id);
+    if(saved&&saved.length) p.photos=saved;
+  }
+}
+
 (function initFirebase(){
   const cfg={
     apiKey:"AIzaSyAujT1HVRhtzjJmoftxuMQd4-Z38O6FjZc",
@@ -5663,6 +5734,7 @@ let _fbAuth=null,_fbDb=null,_fbStorage=null;
     messagingSenderId:"187527244945",
     appId:"1:187527244945:web:d51bff9c71868ccbae2330"
   };
+  _initIDB();
   try{firebase.initializeApp(cfg);_fbAuth=firebase.auth();_fbDb=firebase.firestore();}catch(e){console.warn('Firebase init:',e);}
   try{_fbStorage=firebase.storage();}catch(e){console.warn('Firebase Storage not available:',e);_fbStorage=null;}
 })();
