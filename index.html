@@ -726,6 +726,7 @@ textarea.form-input{resize:vertical;min-height:72px}
   /* === TOPNAV hide on mobile (use sidebar) === */
   .topnav{display:none}
 }
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -2626,7 +2627,7 @@ function openEditListing(type,id){
   <div class="modal-actions">
     <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
     <button class="btn btn-outline" style="color:var(--danger);border-color:#FECACA" onclick="confirmDeleteListing('${type}','${id}')">🗑 ลบทรัพย์</button>
-    <button class="btn btn-primary" onclick="saveEditListing()">💾 บันทึกการแก้ไข</button>
+    <button class="btn btn-primary" id="edit-save-btn" onclick="saveEditListing()">💾 บันทึกการแก้ไข</button>
   </div>`;
 
   const ov=document.getElementById('modal');
@@ -2659,6 +2660,7 @@ function openEditListing(type,id){
 }
 
 function saveEditListing(){
+  if(_pendingImgBBUploads>0){showToast('⏳ กรุณารอ sync รูปให้เสร็จก่อน ('+_pendingImgBBUploads+' รูป)');return;}
   const mc=document.getElementById('modal-content');
   const mq=id=>mc.querySelector('#'+id);
   const title=(mq('af-title')||{}).value?.trim()||'';
@@ -3384,6 +3386,8 @@ function handlePhotoDrop(e){
   handlePhotoFiles(e.dataTransfer.files);
 }
 
+let _pendingImgBBUploads=0; // นับรูปที่กำลัง upload ImgBB
+
 function handlePhotoFiles(files){
   const remaining=MAX_PHOTOS-_addPhotos.length;
   if(remaining<=0){showToast('⚠️ ครบ 25 รูปแล้วครับ');return;}
@@ -3393,35 +3397,86 @@ function handlePhotoFiles(files){
     if(!file.type.startsWith('image/'))return;
     const reader=new FileReader();
     reader.onload=e=>{
-      // Resize via canvas to max 900px
       const img=new Image();
       img.onload=()=>{
         const canvas=document.createElement('canvas');
-        const MAX=900;
+        const MAX=1200;
         let w=img.width,h=img.height;
         if(w>MAX||h>MAX){if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;}}
         canvas.width=w;canvas.height=h;
         canvas.getContext('2d').drawImage(img,0,0,w,h);
-        const base64=canvas.toDataURL('image/jpeg',0.82);
+        const base64=canvas.toDataURL('image/jpeg',0.85);
         _addPhotos.push(base64);
         done++;
         if(done===arr.length)updatePhotoGrid();
-        // อัปโหลดขึ้น ImgBB ทันที (background) ถ้ามี API Key
+        // อัปโหลดขึ้น ImgBB ทันที — รูปจะ sync ได้ทุกเครื่อง
         if(_getImgBBKey()){
+          _pendingImgBBUploads++;
+          _showImgBBUploadStatus();
           (async()=>{
             try{
               const httpUrl=await _uploadToImgBB(base64);
               if(httpUrl){
-                const idx=_addPhotos.indexOf(base64);
-                if(idx>=0){_addPhotos[idx]=httpUrl;updatePhotoGrid();}
+                const i=_addPhotos.indexOf(base64);
+                if(i>=0){_addPhotos[i]=httpUrl;}
               }
-            }catch(e){console.warn('ImgBB bg upload:',e);}
+            }catch(e){console.warn('ImgBB upload:',e);}
+            finally{
+              _pendingImgBBUploads=Math.max(0,_pendingImgBBUploads-1);
+              _showImgBBUploadStatus();
+              updatePhotoGrid();
+            }
           })();
         }
       };
       img.src=e.target.result;
     };
     reader.readAsDataURL(file);
+  });
+}
+
+function _showImgBBUploadStatus(){
+  const uploading=_pendingImgBBUploads>0;
+
+  // 1. แสดง banner ใต้ photo grid
+  document.querySelectorAll('[id="photo-preview-grid"]').forEach(function(grid){
+    var statusEl=grid.parentElement.querySelector('.imgbb-upload-status');
+    if(!statusEl){
+      statusEl=document.createElement('div');
+      statusEl.className='imgbb-upload-status';
+      statusEl.style.cssText='display:none;align-items:center;gap:8px;margin-top:6px;padding:8px 12px;background:#EFF6FF;border:1px solid #93C5FD;border-radius:10px;font-size:12px;color:#1D4ED8;font-weight:500';
+      grid.parentElement.insertBefore(statusEl,grid.nextSibling);
+    }
+    if(uploading){
+      statusEl.style.display='flex';
+      statusEl.innerHTML='<span style="animation:spin 1s linear infinite;display:inline-block;font-size:16px">⏳</span>'
+        +' กำลัง sync '+_pendingImgBBUploads+' รูปขึ้น cloud — <b>กรุณารอก่อนบันทึก</b>';
+    } else {
+      statusEl.style.display='none';
+    }
+  });
+
+  // 2. Disable/enable ปุ่ม save (Add modal + Edit modal)
+  var saveBtns=[
+    document.getElementById('add-save-btn'),
+    document.getElementById('edit-save-btn'),
+    // กรณี edit modal ไม่มี id — หา button ใน #edit-modal
+    null // edit-save-btn id is now set directly
+  ];
+  saveBtns.forEach(function(btn){
+    if(!btn)return;
+    if(uploading){
+      btn.disabled=true;
+      if(!btn.dataset.origText)btn.dataset.origText=btn.innerHTML;
+      btn.innerHTML='<span style="animation:spin 1s linear infinite;display:inline-block">⏳</span> กำลัง sync รูป...';
+      btn.style.opacity='0.65';
+      btn.style.cursor='not-allowed';
+    } else {
+      btn.disabled=false;
+      if(btn.dataset.origText)btn.innerHTML=btn.dataset.origText;
+      btn.style.opacity='';
+      btn.style.cursor='';
+    }
   });
 }
 
@@ -4070,6 +4125,7 @@ function updateFieldsByType(type){
 }
 
 function saveNewListing(){
+  if(_pendingImgBBUploads>0){showToast('⏳ กรุณารอ sync รูปให้เสร็จก่อน ('+_pendingImgBBUploads+' รูป)');return;}
   const title=document.getElementById('af-title').value.trim();
   const price=parseFloat((document.getElementById('af-price').value||'').replace(/,/g,''))||0;
   if(!title){showToast('⚠️ กรุณาใส่ชื่อทรัพย์');return;}
@@ -5803,6 +5859,7 @@ function switchAuthTab(tab){
 
 /* ===== FIREBASE AUTH & DB ===== */
 let _fbAuth=null,_fbDb=null,_fbStorage=null;
+let _syncUnsub=null; // Firestore real-time listener
 let _fsErrCount=0; // นับครั้ง Firestore error — แสดง toast แค่ครั้งแรก
 function _showCloudWarn(){
   // แสดง banner เล็กๆ มุมล่างขวา — ไม่ขึ้นกลางหน้าจอ ไม่รบกวนการใช้งาน
@@ -5900,6 +5957,58 @@ function _autoSyncPhotosToCloud(uid){
   }).catch(function(){});
 }
 
+// ===== REAL-TIME FIRESTORE SYNC =====
+function _startFirestoreSync(uid){
+  if(_syncUnsub){try{_syncUnsub();}catch(e){}_syncUnsub=null;}
+  if(!_fbDb||!uid)return;
+  var _syncDebounce=null;
+  _syncUnsub=_fbDb.collection('users').doc(uid).onSnapshot(async function(doc){
+    if(!doc.exists)return;
+    var d=doc.data();
+    var fSell=d.sell||[],fRent=d.rent||[],fLeads=d.leads||[];
+    // ตรวจว่าข้อมูลเปลี่ยนจริงๆ ไหม (ป้องกัน re-render จากตัวเอง)
+    var sellIds=SELL.map(function(p){return p.id;}).join(',');
+    var rentIds=RENT.map(function(p){return p.id;}).join(',');
+    var fSellIds=fSell.map(function(p){return p.id;}).join(',');
+    var fRentIds=fRent.map(function(p){return p.id;}).join(',');
+    var sellDataStr=JSON.stringify(SELL.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
+    var fSellDataStr=JSON.stringify(fSell.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
+    var rentDataStr=JSON.stringify(RENT.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
+    var fRentDataStr=JSON.stringify(fRent.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
+    var leadsStr=JSON.stringify(leads.map(function(l){return l.id||l.name;}));
+    var fLeadsStr=JSON.stringify(fLeads.map(function(l){return l.id||l.name;}));
+    if(sellDataStr===fSellDataStr&&rentDataStr===fRentDataStr&&leadsStr===fLeadsStr)return;
+    // อัปเดตข้อมูลจาก Firestore
+    SELL.length=0;fSell.forEach(function(p){SELL.push(p);});
+    RENT.length=0;fRent.forEach(function(p){RENT.push(p);});
+    leads.length=0;fLeads.forEach(function(l){leads.push(l);});
+    // บันทึก localStorage
+    try{
+      localStorage.setItem('sahai_sell_'+uid,JSON.stringify(SELL));
+      localStorage.setItem('sahai_rent_'+uid,JSON.stringify(RENT));
+      localStorage.setItem('sahai_leads_'+uid,JSON.stringify(leads));
+    }catch(e){}
+    // restore รูปจาก IndexedDB (ไม่ re-render ซ้ำ)
+    try{
+      var all=[...SELL,...RENT];
+      for(var i=0;i<all.length;i++){
+        var p=all[i];
+        var saved=await _idbGet(uid+'_'+p.id);
+        if(saved&&saved.length)p.photos=saved;
+      }
+    }catch(e){}
+    // re-render ทุกอย่าง
+    try{
+      renderCards('sell');renderTable('sell');
+      renderCards('rent');renderTable('rent');
+      renderLeads();renderDashboard();
+      updateTopnavBadges();updatePinnedCount();
+    }catch(e){}
+  },function(err){
+    console.warn('Firestore sync:',err.code||err.message);
+  });
+}
+
 (function initFirebase(){
   const cfg={
     apiKey:"AIzaSyAujT1HVRhtzjJmoftxuMQd4-Z38O6FjZc",
@@ -5975,11 +6084,12 @@ function doLogin(){
       loadData().then(function(){
         try{renderCards('sell');renderTable('sell');renderCards('rent');renderTable('rent');renderLeads();renderDashboard();updateTopnavBadges();updatePinnedCount();}catch(e){}
         showMainApp(userObj);
-        // Re-render dashboard list หลัง 800ms เผื่อ photos โหลดจาก IndexedDB ไม่ทัน
+        _startFirestoreSync(userObj.uid);
         setTimeout(function(){try{renderDashRecentList();}catch(e){}},800);
       }).catch(function(e){
         console.warn('loadData err:',e);
         showMainApp(userObj);
+        _startFirestoreSync(userObj.uid);
       });
     })
     .catch(function(e){
@@ -6028,6 +6138,7 @@ function toggleMobileSidebar(){
 }
 
 function doLogout(){
+  if(_syncUnsub){try{_syncUnsub();}catch(e){}_syncUnsub=null;}
   _currentUser=null;SELL.length=0;RENT.length=0;leads.length=0;
   // ไม่ลบ localStorage (uid-specific) — ให้รูปและข้อมูลอยู่สำหรับ login ครั้งต่อไป
   // key แยกตาม uid แล้ว user อื่น login มาก็ไม่เห็นข้อมูลกัน
