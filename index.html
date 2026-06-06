@@ -5119,7 +5119,12 @@ async function saveData(){
     sell:httpOnly(SELL),rent:httpOnly(RENT),leads:leads,updatedAt:Date.now()
   },{merge:true})
   .then(()=>{
-    try{localStorage.setItem('sahai_cloud_sync',Date.now().toString());}catch(e){}
+    try{
+      const ts=Date.now().toString();
+      localStorage.setItem('sahai_cloud_sync',ts);
+      const _u=_fbAuth&&_fbAuth.currentUser?_fbAuth.currentUser.uid:'';
+      if(_u) localStorage.setItem('sahai_updatedAt_'+_u,ts);
+    }catch(e){}
     _fsErrCount=0;
   })
   .catch(e=>{
@@ -5146,7 +5151,7 @@ async function loadData(){
     }
   }catch(e){}
 
-  // ===== STEP 2: เช็ค Firestore — ใช้เฉพาะถ้ามีข้อมูลมากกว่า localStorage =====
+  // ===== STEP 2: Firestore = source of truth เสมอ (ใช้ updatedAt เป็นตัวตัดสิน) =====
   try{
     const user=_fbAuth?_fbAuth.currentUser:null;
     if(user && _fbDb){
@@ -5154,13 +5159,18 @@ async function loadData(){
       if(doc.exists){
         const d=doc.data();
         const cSell=d.sell||[], cRent=d.rent||[], cLeads=d.leads||[];
-        if(cSell.length>SELL.length || cRent.length>RENT.length){
-          // Cloud มีข้อมูลมากกว่า (เปิดจากเครื่องอื่น) → ใช้ cloud แต่ preserve รูปจาก local
-          // สร้าง map ของรูปจาก localStorage (อาจมี base64 หรือ HTTP URL ที่ใหม่กว่า)
+        const cloudUpdatedAt=d.updatedAt||0;
+        const localUpdatedAt=parseInt(localStorage.getItem('sahai_updatedAt_'+user.uid)||'0');
+        // *** Firestore เป็น source of truth เสมอ ***
+        // ยกเว้นกรณีเดียว: local ใหม่กว่า AND cloud ไม่มีข้อมูลเลย (login เครื่องแรก)
+        const cloudIsNewer = cloudUpdatedAt >= localUpdatedAt;
+        const cloudHasData = cSell.length>0 || cRent.length>0 || cLeads.length>0;
+        const localHasData = SELL.length>0 || RENT.length>0 || leads.length>0;
+        if(cloudIsNewer || cloudHasData){
+          // ใช้ข้อมูลจาก Firestore (รวมกรณีที่ cloud ลบทรัพย์ทิ้ง → cSell=[])
           const localPhotoMap={};
           SELL.forEach(p=>{if(p.photos&&p.photos.length)localPhotoMap[p.id]=p.photos;});
           RENT.forEach(p=>{if(p.photos&&p.photos.length)localPhotoMap[p.id]=p.photos;});
-          // merge: ใช้ Firestore data แต่คืนรูปจาก local ถ้ามี
           SELL.length=0;
           cSell.forEach(p=>{
             if(localPhotoMap[p.id]&&localPhotoMap[p.id].length) p.photos=localPhotoMap[p.id];
@@ -5172,24 +5182,19 @@ async function loadData(){
             RENT.push(p);
           });
           leads.length=0; cLeads.forEach(l=>leads.push(l));
-          // sync กลับมา localStorage ด้วย uid-specific key
+          // อัปเดต localStorage ให้ตรงกับ Firestore
           try{
-            const _uid=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
-            if(_uid){
-              localStorage.setItem('sahai_sell_'+_uid,JSON.stringify(SELL));
-              localStorage.setItem('sahai_rent_'+_uid,JSON.stringify(RENT));
-              localStorage.setItem('sahai_leads_'+_uid,JSON.stringify(leads));
-            }
+            localStorage.setItem('sahai_sell_'+user.uid,JSON.stringify(SELL));
+            localStorage.setItem('sahai_rent_'+user.uid,JSON.stringify(RENT));
+            localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
+            if(cloudUpdatedAt) localStorage.setItem('sahai_updatedAt_'+user.uid,String(cloudUpdatedAt));
           }catch(e){}
-        } else if((SELL.length>cSell.length||RENT.length>cRent.length) && (SELL.length>0||RENT.length>0)){
-          // localStorage มีข้อมูลมากกว่า → sync ขึ้น cloud
-          saveData();
-        } else if(!doc.exists && (SELL.length>0||RENT.length>0)){
-          // ยังไม่มี doc บน cloud → สร้างใหม่
+        } else if(localHasData){
+          // local ใหม่กว่า cloud จริงๆ (เช่น offline นาน) → sync ขึ้น cloud
           saveData();
         }
-      } else if(SELL.length>0||RENT.length>0){
-        // ไม่มี doc บน cloud แต่ localStorage มีข้อมูล → sync ขึ้น cloud
+      } else if(SELL.length>0||RENT.length>0||leads.length>0){
+        // ไม่มี doc บน cloud เลย → สร้างใหม่
         saveData();
       }
     }
@@ -5966,27 +5971,25 @@ function _startFirestoreSync(uid){
     if(!doc.exists)return;
     var d=doc.data();
     var fSell=d.sell||[],fRent=d.rent||[],fLeads=d.leads||[];
-    // ตรวจว่าข้อมูลเปลี่ยนจริงๆ ไหม (ป้องกัน re-render จากตัวเอง)
-    var sellIds=SELL.map(function(p){return p.id;}).join(',');
-    var rentIds=RENT.map(function(p){return p.id;}).join(',');
-    var fSellIds=fSell.map(function(p){return p.id;}).join(',');
-    var fRentIds=fRent.map(function(p){return p.id;}).join(',');
-    var sellDataStr=JSON.stringify(SELL.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
-    var fSellDataStr=JSON.stringify(fSell.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
-    var rentDataStr=JSON.stringify(RENT.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
-    var fRentDataStr=JSON.stringify(fRent.map(function(p){return {id:p.id,status:p.status,price:p.price,title:p.title};}));
-    var leadsStr=JSON.stringify(leads.map(function(l){return l.id||l.name;}));
-    var fLeadsStr=JSON.stringify(fLeads.map(function(l){return l.id||l.name;}));
-    if(sellDataStr===fSellDataStr&&rentDataStr===fRentDataStr&&leadsStr===fLeadsStr)return;
+    // ตรวจว่าข้อมูลเปลี่ยนจริงๆ ด้วย updatedAt (ป้องกัน re-render จากตัวเอง)
+    var cloudUpdatedAt=d.updatedAt||0;
+    var localUpdatedAt=parseInt(localStorage.getItem('sahai_updatedAt_'+uid)||'0');
+    // ถ้า cloud ไม่ได้ใหม่กว่า local → เราเป็นคนอัปโหลดเอง ไม่ต้อง re-render
+    if(cloudUpdatedAt>0 && cloudUpdatedAt<=localUpdatedAt){
+      // แต่เช็ค item count ด้วย — กรณีลบทรัพย์ควร sync เสมอ
+      var sameCount=(fSell.length===SELL.length && fRent.length===RENT.length && fLeads.length===leads.length);
+      if(sameCount) return;
+    }
     // อัปเดตข้อมูลจาก Firestore
     SELL.length=0;fSell.forEach(function(p){SELL.push(p);});
     RENT.length=0;fRent.forEach(function(p){RENT.push(p);});
     leads.length=0;fLeads.forEach(function(l){leads.push(l);});
-    // บันทึก localStorage
+    // บันทึก localStorage + updatedAt
     try{
       localStorage.setItem('sahai_sell_'+uid,JSON.stringify(SELL));
       localStorage.setItem('sahai_rent_'+uid,JSON.stringify(RENT));
       localStorage.setItem('sahai_leads_'+uid,JSON.stringify(leads));
+      if(cloudUpdatedAt) localStorage.setItem('sahai_updatedAt_'+uid,String(cloudUpdatedAt));
     }catch(e){}
     // restore รูปจาก IndexedDB (ไม่ re-render ซ้ำ)
     try{
