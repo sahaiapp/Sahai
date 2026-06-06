@@ -1086,7 +1086,19 @@ textarea.form-input{resize:vertical;min-height:72px}
         <div class="form-card">
           <div class="fc-title">➕ บันทึก Lead ใหม่</div>
           <div class="form-grid-2">
-            <div class="form-group"><label>ชื่อลูกค้า</label><input class="form-input" id="l-name" placeholder="ชื่อ-นามสกุล"></div>
+            <div class="form-group form-full" style="margin-bottom:0">
+              <label>ประเภทผู้ติดต่อ</label>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button type="button" id="lct-btn-customer" onclick="setLeadContactType('ลูกค้า')"
+                  style="flex:1;padding:9px 0;border-radius:9px;border:1.5px solid var(--primary);background:var(--primary);color:#fff;font-weight:700;font-size:13px;cursor:pointer;transition:.15s">
+                  👤 ลูกค้า</button>
+                <button type="button" id="lct-btn-agent" onclick="setLeadContactType('เอเจนต์')"
+                  style="flex:1;padding:9px 0;border-radius:9px;border:1.5px solid var(--border);background:transparent;color:var(--text2);font-weight:600;font-size:13px;cursor:pointer;transition:.15s">
+                  🤝 เอเจนต์ (Co-Agent)</button>
+                <input type="hidden" id="l-contact-type" value="ลูกค้า">
+              </div>
+            </div>
+            <div class="form-group"><label id="l-name-label">ชื่อลูกค้า</label><input class="form-input" id="l-name" placeholder="ชื่อ-นามสกุล"></div>
             <div class="form-group"><label>เบอร์โทร</label><input class="form-input" id="l-phone" placeholder="0xx-xxx-xxxx"></div>
             <div class="form-group"><label>สนใจ</label><select class="form-input" id="l-type"><option>ซื้อ</option><option>เช่า</option></select></div>
             <div class="form-group"><label>รหัสทรัพย์</label><input class="form-input" id="l-prop" placeholder="เช่น S-001"></div>
@@ -1834,12 +1846,31 @@ function handleOverlayClick(){
 function fmtBudgetInput(el){const raw=el.value.replace(/[^0-9]/g,'');el.dataset.raw=raw;el.value=raw?Number(raw).toLocaleString('th-TH'):'';}
 function _getBudgetRaw(id){const el=document.getElementById(id);return el.dataset.raw||el.value.replace(/[^0-9]/g,'');}
 function addLead(){
-  const lead={date:today(),type:document.getElementById('l-type').value,prop:document.getElementById('l-prop').value,name:document.getElementById('l-name').value,phone:document.getElementById('l-phone').value,channel:document.getElementById('l-channel').value,appt:document.getElementById('l-appt').value,followup:document.getElementById('l-followup').value,status:document.getElementById('l-status').value,budget:_getBudgetRaw('l-budget'),note:document.getElementById('l-note').value};
+  const lead={date:today(),contactType:document.getElementById('l-contact-type').value||'ลูกค้า',type:document.getElementById('l-type').value,prop:document.getElementById('l-prop').value,name:document.getElementById('l-name').value,phone:document.getElementById('l-phone').value,channel:document.getElementById('l-channel').value,appt:document.getElementById('l-appt').value,followup:document.getElementById('l-followup').value,status:document.getElementById('l-status').value,budget:_getBudgetRaw('l-budget'),note:document.getElementById('l-note').value};
   if(!lead.name){showToast('⚠️ กรุณาใส่ชื่อลูกค้า');return;}
   leads.push(lead);saveData();renderLeads();clearLeadForm();renderPipeline();updateFollowupBadge();renderReminders();
   showToast('✅ บันทึก Lead เรียบร้อย');
 }
-function clearLeadForm(){['l-name','l-phone','l-prop','l-appt','l-followup','l-note'].forEach(id=>document.getElementById(id).value='');const b=document.getElementById('l-budget');b.value='';b.dataset.raw='';}
+function setLeadContactType(type){
+  const inp=document.getElementById('l-contact-type');
+  if(inp)inp.value=type;
+  const btnC=document.getElementById('lct-btn-customer');
+  const btnA=document.getElementById('lct-btn-agent');
+  const lbl=document.getElementById('l-name-label');
+  const nameInp=document.getElementById('l-name');
+  if(type==='เอเจนต์'){
+    if(btnC){btnC.style.background='transparent';btnC.style.color='var(--text2)';btnC.style.borderColor='var(--border)';}
+    if(btnA){btnA.style.background='var(--primary)';btnA.style.color='#fff';btnA.style.borderColor='var(--primary)';}
+    if(lbl)lbl.innerHTML='ชื่อเอเจนต์ <span style="font-size:10px;background:#EDE9FE;color:#7C3AED;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:4px">CO-AGENT</span>';
+    if(nameInp)nameInp.placeholder='ชื่อเอเจนต์/บริษัท';
+  } else {
+    if(btnC){btnC.style.background='var(--primary)';btnC.style.color='#fff';btnC.style.borderColor='var(--primary)';}
+    if(btnA){btnA.style.background='transparent';btnA.style.color='var(--text2)';btnA.style.borderColor='var(--border)';}
+    if(lbl)lbl.textContent='ชื่อลูกค้า';
+    if(nameInp)nameInp.placeholder='ชื่อ-นามสกุล';
+  }
+}
+function clearLeadForm(){['l-name','l-phone','l-prop','l-appt','l-followup','l-note'].forEach(id=>document.getElementById(id).value='');const b=document.getElementById('l-budget');b.value='';b.dataset.raw='';setLeadContactType('ลูกค้า');}
 function deleteLead(i){leads.splice(i,1);saveData();renderLeads();renderPipeline();updateFollowupBadge();renderReminders();}
 function editLead(i){
   const l=leads[i];if(!l)return;
@@ -1854,7 +1885,19 @@ function editLead(i){
   </div>
   <div class="modal-body">
     <div class="form-grid-2">
-      <div class="form-group"><label>ชื่อลูกค้า</label><input class="form-input" id="el-name" value="${l.name||''}"></div>
+      <div class="form-group form-full" style="margin-bottom:0">
+        <label>ประเภทผู้ติดต่อ</label>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <button type="button" id="elct-btn-customer" onclick="setEditLeadContactType('ลูกค้า')"
+            style="flex:1;padding:8px 0;border-radius:9px;border:1.5px solid ${(l.contactType||'ลูกค้า')==='ลูกค้า'?'var(--primary)':'var(--border)'};background:${(l.contactType||'ลูกค้า')==='ลูกค้า'?'var(--primary)':'transparent'};color:${(l.contactType||'ลูกค้า')==='ลูกค้า'?'#fff':'var(--text2)'};font-weight:700;font-size:13px;cursor:pointer">
+            👤 ลูกค้า</button>
+          <button type="button" id="elct-btn-agent" onclick="setEditLeadContactType('เอเจนต์')"
+            style="flex:1;padding:8px 0;border-radius:9px;border:1.5px solid ${(l.contactType||'ลูกค้า')==='เอเจนต์'?'var(--primary)':'var(--border)'};background:${(l.contactType||'ลูกค้า')==='เอเจนต์'?'var(--primary)':'transparent'};color:${(l.contactType||'ลูกค้า')==='เอเจนต์'?'#fff':'var(--text2)'};font-weight:600;font-size:13px;cursor:pointer">
+            🤝 เอเจนต์ (Co-Agent)</button>
+          <input type="hidden" id="el-contact-type" value="${l.contactType||'ลูกค้า'}">
+        </div>
+      </div>
+      <div class="form-group"><label id="el-name-label">${(l.contactType||'ลูกค้า')==='เอเจนต์'?'ชื่อเอเจนต์':'ชื่อลูกค้า'}</label><input class="form-input" id="el-name" value="${l.name||''}" placeholder="${(l.contactType||'ลูกค้า')==='เอเจนต์'?'ชื่อเอเจนต์/บริษัท':'ชื่อ-นามสกุล'}"></div>
       <div class="form-group"><label>เบอร์โทร</label><input class="form-input" id="el-phone" value="${l.phone||''}"></div>
       <div class="form-group"><label>สนใจ</label><select class="form-input" id="el-type">${typeOpts}</select></div>
       <div class="form-group"><label>รหัสทรัพย์</label><input class="form-input" id="el-prop" value="${l.prop||''}"></div>
@@ -1873,8 +1916,27 @@ function editLead(i){
   const ov=document.getElementById('modal');ov.style.display='flex';requestAnimationFrame(()=>ov.classList.add('show'));
   window._modalType='editLead';
 }
+function setEditLeadContactType(type){
+  const inp=document.getElementById('el-contact-type');if(inp)inp.value=type;
+  const btnC=document.getElementById('elct-btn-customer');
+  const btnA=document.getElementById('elct-btn-agent');
+  const lbl=document.getElementById('el-name-label');
+  const nameInp=document.getElementById('el-name');
+  if(type==='เอเจนต์'){
+    if(btnC){btnC.style.background='transparent';btnC.style.color='var(--text2)';btnC.style.borderColor='var(--border)';}
+    if(btnA){btnA.style.background='var(--primary)';btnA.style.color='#fff';btnA.style.borderColor='var(--primary)';}
+    if(lbl)lbl.innerHTML='ชื่อเอเจนต์ <span style="font-size:10px;background:#EDE9FE;color:#7C3AED;padding:1px 6px;border-radius:4px;font-weight:700;margin-left:4px">CO-AGENT</span>';
+    if(nameInp)nameInp.placeholder='ชื่อเอเจนต์/บริษัท';
+  } else {
+    if(btnC){btnC.style.background='var(--primary)';btnC.style.color='#fff';btnC.style.borderColor='var(--primary)';}
+    if(btnA){btnA.style.background='transparent';btnA.style.color='var(--text2)';btnA.style.borderColor='var(--border)';}
+    if(lbl)lbl.textContent='ชื่อลูกค้า';
+    if(nameInp)nameInp.placeholder='ชื่อ-นามสกุล';
+  }
+}
 function saveEditLead(i){
   if(!leads[i])return;
+  leads[i].contactType=document.getElementById('el-contact-type').value||'ลูกค้า';
   leads[i].name=document.getElementById('el-name').value;
   leads[i].phone=document.getElementById('el-phone').value;
   leads[i].type=document.getElementById('el-type').value;
@@ -1898,7 +1960,8 @@ function renderLeads(){
     const isToday=l.followup&&l.followup===tod&&l.status!=='ปิดดีล'&&l.status!=='ไม่สนใจแล้ว';
     const rowCls=isOverdue?'lead-overdue':isToday?'lead-today':'';
     const fuDisplay=l.followup?(isOverdue?`<span style="color:#DC2626;font-weight:700">⚠️ ${l.followup}</span>`:isToday?`<span style="color:#D97706;font-weight:700">🔔 วันนี้</span>`:`<span style="color:var(--text2)">${l.followup}</span>`):`<span style="color:var(--text3)">-</span>`;
-    return`<tr class="${rowCls}"><td>${l.date}</td><td><b>${l.name}</b></td><td><a href="tel:${l.phone}" style="color:var(--primary)">${l.phone}</a></td><td>${l.type}</td><td><b>${l.prop||'-'}</b></td><td>${l.budget?'฿'+Number(l.budget).toLocaleString('th-TH'):'-'}</td><td>${l.appt||'-'}</td><td>${fuDisplay}</td><td><span class="${sc[l.status]||'badge'}">${l.status}</span></td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="editLead(${i})" style="margin-right:4px">✏️แก้ไข</button><button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteLead(${i})">ลบ</button></td></tr>`;
+    const ctBadge=l.contactType==='เอเจนต์'?`<span style="font-size:9px;background:#EDE9FE;color:#7C3AED;padding:1px 5px;border-radius:4px;font-weight:700;margin-left:4px;vertical-align:middle">CO-AGENT</span>`:``;
+    return`<tr class="${rowCls}"><td>${l.date}</td><td><b>${l.name}</b>${ctBadge}</td><td><a href="tel:${l.phone}" style="color:var(--primary)">${l.phone}</a></td><td>${l.type}</td><td><b>${l.prop||'-'}</b></td><td>${l.budget?'฿'+Number(l.budget).toLocaleString('th-TH'):'-'}</td><td>${l.appt||'-'}</td><td>${fuDisplay}</td><td><span class="${sc[l.status]||'badge'}">${l.status}</span></td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="editLead(${i})" style="margin-right:4px">✏️แก้ไข</button><button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteLead(${i})">ลบ</button></td></tr>`;
   }).join('');
 }
 function addLeadFromProp(type,id){closeModal();showPage('leads',document.getElementById('nav-leads'));document.getElementById('l-type').value=type==='sell'?'ซื้อ':'เช่า';document.getElementById('l-prop').value=id;document.getElementById('l-name').focus();}
