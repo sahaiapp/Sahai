@@ -1086,7 +1086,7 @@ textarea.form-input{resize:vertical;min-height:72px}
             <div class="form-group"><label>สนใจ</label><select class="form-input" id="l-type"><option>ซื้อ</option><option>เช่า</option></select></div>
             <div class="form-group"><label>รหัสทรัพย์</label><input class="form-input" id="l-prop" placeholder="เช่น S-001"></div>
             <div class="form-group"><label>ช่องทาง</label><select class="form-input" id="l-channel"><option>โทรศัพท์</option><option>Line</option><option>Facebook</option><option>อื่นๆ</option></select></div>
-            <div class="form-group"><label>งบประมาณ (บาท)</label><input class="form-input" id="l-budget" placeholder="เช่น 15000000"></div>
+            <div class="form-group"><label>งบประมาณ (บาท)</label><input class="form-input" id="l-budget" placeholder="เช่น 15,000,000" oninput="fmtBudgetInput(this)" inputmode="numeric"></div>
             <div class="form-group"><label>วันนัดชม</label><input class="form-input" type="date" id="l-appt"></div>
             <div class="form-group"><label>🔔 Follow-up ครั้งต่อไป</label><input class="form-input" type="date" id="l-followup"></div>
             <div class="form-group"><label>สถานะ</label><select class="form-input" id="l-status"><option>ลูกค้าใหม่</option><option>นัดชมแล้ว</option><option>ยื่นข้อเสนอแล้ว</option><option>ปิดดีล</option><option>ไม่สนใจแล้ว</option></select></div>
@@ -1096,7 +1096,7 @@ textarea.form-input{resize:vertical;min-height:72px}
         </div>
         <div class="table-wrap">
           <table class="data-table"><thead><tr><th>วันที่</th><th>ชื่อ</th><th>เบอร์</th><th>สนใจ</th><th>รหัสทรัพย์</th><th>งบ</th><th>นัดชม</th><th>🔔 Follow-up</th><th>สถานะ</th><th></th></tr></thead>
-          <tbody id="leads-body"><tr><td colspan="9"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">ยังไม่มี Lead</div></div></td></tr></tbody></table>
+          <tbody id="leads-body"><tr><td colspan="10"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">ยังไม่มี Lead</div></div></td></tr></tbody></table>
         </div>
       </div>
 
@@ -1863,17 +1863,66 @@ function handleOverlayClick(){
   }
 }
 
+function fmtBudgetInput(el){const raw=el.value.replace(/[^0-9]/g,'');el.dataset.raw=raw;el.value=raw?Number(raw).toLocaleString('th-TH'):'';}
+function _getBudgetRaw(id){const el=document.getElementById(id);return el.dataset.raw||el.value.replace(/[^0-9]/g,'');}
 function addLead(){
-  const lead={date:today(),type:document.getElementById('l-type').value,prop:document.getElementById('l-prop').value,name:document.getElementById('l-name').value,phone:document.getElementById('l-phone').value,channel:document.getElementById('l-channel').value,appt:document.getElementById('l-appt').value,followup:document.getElementById('l-followup').value,status:document.getElementById('l-status').value,budget:document.getElementById('l-budget').value,note:document.getElementById('l-note').value};
+  const lead={date:today(),type:document.getElementById('l-type').value,prop:document.getElementById('l-prop').value,name:document.getElementById('l-name').value,phone:document.getElementById('l-phone').value,channel:document.getElementById('l-channel').value,appt:document.getElementById('l-appt').value,followup:document.getElementById('l-followup').value,status:document.getElementById('l-status').value,budget:_getBudgetRaw('l-budget'),note:document.getElementById('l-note').value};
   if(!lead.name){showToast('⚠️ กรุณาใส่ชื่อลูกค้า');return;}
   leads.push(lead);saveData();renderLeads();clearLeadForm();renderPipeline();updateFollowupBadge();renderReminders();
   showToast('✅ บันทึก Lead เรียบร้อย');
 }
-function clearLeadForm(){['l-name','l-phone','l-prop','l-budget','l-appt','l-followup','l-note'].forEach(id=>document.getElementById(id).value='');}
+function clearLeadForm(){['l-name','l-phone','l-prop','l-appt','l-followup','l-note'].forEach(id=>document.getElementById(id).value='');const b=document.getElementById('l-budget');b.value='';b.dataset.raw='';}
 function deleteLead(i){leads.splice(i,1);saveData();renderLeads();renderPipeline();updateFollowupBadge();renderReminders();}
+function editLead(i){
+  const l=leads[i];if(!l)return;
+  const statusOpts=['ลูกค้าใหม่','นัดชมแล้ว','ยื่นข้อเสนอแล้ว','ปิดดีล','ไม่สนใจแล้ว'].map(s=>`<option${s===l.status?' selected':''}>${s}</option>`).join('');
+  const typeOpts=['ซื้อ','เช่า'].map(s=>`<option${s===l.type?' selected':''}>${s}</option>`).join('');
+  const chOpts=['โทรศัพท์','Line','Facebook','อื่นๆ'].map(s=>`<option${s===l.channel?' selected':''}>${s}</option>`).join('');
+  const budgetFmt=l.budget?Number(l.budget).toLocaleString('th-TH'):'';
+  document.getElementById('modal-content').innerHTML=`
+  <div class="modal-header" style="position:sticky;top:0;z-index:2;background:var(--white)">
+    <div><div class="modal-title">✏️ แก้ไข Lead — ${l.name||'ไม่มีชื่อ'}</div><div class="modal-sub">แก้ไขข้อมูลและสถานะลูกค้า</div></div>
+    <button class="modal-close" onclick="closeModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="form-grid-2">
+      <div class="form-group"><label>ชื่อลูกค้า</label><input class="form-input" id="el-name" value="${l.name||''}"></div>
+      <div class="form-group"><label>เบอร์โทร</label><input class="form-input" id="el-phone" value="${l.phone||''}"></div>
+      <div class="form-group"><label>สนใจ</label><select class="form-input" id="el-type">${typeOpts}</select></div>
+      <div class="form-group"><label>รหัสทรัพย์</label><input class="form-input" id="el-prop" value="${l.prop||''}"></div>
+      <div class="form-group"><label>ช่องทาง</label><select class="form-input" id="el-channel">${chOpts}</select></div>
+      <div class="form-group"><label>งบประมาณ (บาท)</label><input class="form-input" id="el-budget" value="${budgetFmt}" placeholder="เช่น 15,000,000" oninput="fmtBudgetInput(this)" inputmode="numeric" data-raw="${l.budget||''}"></div>
+      <div class="form-group"><label>วันนัดชม</label><input class="form-input" type="date" id="el-appt" value="${l.appt||''}"></div>
+      <div class="form-group"><label>🔔 Follow-up ครั้งต่อไป</label><input class="form-input" type="date" id="el-followup" value="${l.followup||''}"></div>
+      <div class="form-group"><label>สถานะ</label><select class="form-input" id="el-status" style="font-weight:700">${statusOpts}</select></div>
+      <div class="form-group form-full"><label>หมายเหตุ</label><textarea class="form-input" id="el-note">${l.note||''}</textarea></div>
+    </div>
+  </div>
+  <div class="modal-actions">
+    <button class="btn btn-outline" onclick="closeModal()">ยกเลิก</button>
+    <button class="btn btn-primary" onclick="saveEditLead(${i})">💾 บันทึกการแก้ไข</button>
+  </div>`;
+  const ov=document.getElementById('modal');ov.style.display='flex';requestAnimationFrame(()=>ov.classList.add('show'));
+  window._modalType='editLead';
+}
+function saveEditLead(i){
+  if(!leads[i])return;
+  leads[i].name=document.getElementById('el-name').value;
+  leads[i].phone=document.getElementById('el-phone').value;
+  leads[i].type=document.getElementById('el-type').value;
+  leads[i].prop=document.getElementById('el-prop').value;
+  leads[i].channel=document.getElementById('el-channel').value;
+  leads[i].budget=_getBudgetRaw('el-budget');
+  leads[i].appt=document.getElementById('el-appt').value;
+  leads[i].followup=document.getElementById('el-followup').value;
+  leads[i].status=document.getElementById('el-status').value;
+  leads[i].note=document.getElementById('el-note').value;
+  saveData();renderLeads();renderPipeline();updateFollowupBadge();renderReminders();
+  closeModal();showToast('✅ อัปเดต Lead เรียบร้อยแล้ว');
+}
 function renderLeads(){
   const tbody=document.getElementById('leads-body');
-  if(!leads.length){tbody.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">ยังไม่มี Lead</div></div></td></tr>`;return;}
+  if(!leads.length){tbody.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">ยังไม่มี Lead</div></div></td></tr>`;return;}
   const sc={'ลูกค้าใหม่':'badge st-avail','นัดชมแล้ว':'badge st-reserved','ยื่นข้อเสนอแล้ว':'badge st-reserved','ปิดดีล':'badge st-closed','ไม่สนใจแล้ว':'badge st-paused'};
   const tod=today();
   tbody.innerHTML=leads.map((l,i)=>{
@@ -1881,7 +1930,7 @@ function renderLeads(){
     const isToday=l.followup&&l.followup===tod&&l.status!=='ปิดดีล'&&l.status!=='ไม่สนใจแล้ว';
     const rowCls=isOverdue?'lead-overdue':isToday?'lead-today':'';
     const fuDisplay=l.followup?(isOverdue?`<span style="color:#DC2626;font-weight:700">⚠️ ${l.followup}</span>`:isToday?`<span style="color:#D97706;font-weight:700">🔔 วันนี้</span>`:`<span style="color:var(--text2)">${l.followup}</span>`):`<span style="color:var(--text3)">-</span>`;
-    return`<tr class="${rowCls}"><td>${l.date}</td><td><b>${l.name}</b></td><td><a href="tel:${l.phone}" style="color:var(--primary)">${l.phone}</a></td><td>${l.type}</td><td><b>${l.prop||'-'}</b></td><td>${l.budget?'฿'+Number(l.budget).toLocaleString('th-TH'):'-'}</td><td>${l.appt||'-'}</td><td>${fuDisplay}</td><td><span class="${sc[l.status]||'badge'}">${l.status}</span></td><td><button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteLead(${i})">ลบ</button></td></tr>`;
+    return`<tr class="${rowCls}"><td>${l.date}</td><td><b>${l.name}</b></td><td><a href="tel:${l.phone}" style="color:var(--primary)">${l.phone}</a></td><td>${l.type}</td><td><b>${l.prop||'-'}</b></td><td>${l.budget?'฿'+Number(l.budget).toLocaleString('th-TH'):'-'}</td><td>${l.appt||'-'}</td><td>${fuDisplay}</td><td><span class="${sc[l.status]||'badge'}">${l.status}</span></td><td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="editLead(${i})" style="margin-right:4px">✏️แก้ไข</button><button class="btn btn-outline btn-sm" style="color:var(--danger)" onclick="deleteLead(${i})">ลบ</button></td></tr>`;
   }).join('');
 }
 function addLeadFromProp(type,id){closeModal();showPage('leads',document.getElementById('nav-leads'));document.getElementById('l-type').value=type==='sell'?'ซื้อ':'เช่า';document.getElementById('l-prop').value=id;document.getElementById('l-name').focus();}
@@ -6164,9 +6213,4 @@ function submitFeedback(){
     localStorage.setItem('sahai_feedback',JSON.stringify(prev));
   }catch(e){}
   closeModal();
-  showToast('ขอบคุณสำหรับ Feedback!');
-}
-
-</script>
-</body>
-</html>
+  showToast('ขอบคุณสำ�
