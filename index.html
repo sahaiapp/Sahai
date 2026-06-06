@@ -1246,11 +1246,23 @@ textarea.form-input{resize:vertical;min-height:72px}
               </div>
             </div>
           </div>
-          <div style="border-top:1px solid var(--border);padding-top:24px;margin-bottom:28px">
+          <div style="border-top:1px solid var(--border);padding-top:24px;margin-bottom:24px">
             <div class="ds-title" style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:14px">ข้อความท้าย <span style="font-weight:400;text-transform:none;font-size:12px;color:var(--text3)">(optional)</span></div>
             <div class="form-group" style="margin:0">
               <label>ข้อความเพิ่มเติมท้ายโพสต์</label>
               <textarea class="form-input" id="prof-footer" rows="3" placeholder="เช่น ยินดีให้คำปรึกษาฟรี พร้อมพาชมทรัพย์ทุกวัน 🏡"></textarea>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:24px;margin-bottom:28px">
+            <div class="ds-title" style="font-size:13px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">☁️ รูปภาพ Cloud Sync</div>
+            <div style="font-size:12px;color:var(--text3);margin-bottom:12px">ใส่ ImgBB API Key เพื่อให้รูปภาพ sync ข้ามเครื่องได้ — <a href="https://api.imgbb.com" target="_blank" style="color:var(--primary)">ขอ Key ฟรีที่ api.imgbb.com</a></div>
+            <div class="form-group" style="margin:0">
+              <label>🔑 ImgBB API Key</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input class="form-input" id="prof-imgbb" placeholder="วาง API Key ที่นี่..." style="font-family:monospace;font-size:12px">
+                <span id="imgbb-status" style="font-size:18px;flex-shrink:0"></span>
+              </div>
+              <div style="font-size:11px;color:var(--text3);margin-top:4px">Key จะเก็บในเครื่องนี้เท่านั้น ปลอดภัย 🔒</div>
             </div>
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -3344,20 +3356,17 @@ function handlePhotoFiles(files){
         _addPhotos.push(base64);
         done++;
         if(done===arr.length)updatePhotoGrid();
-        // อัปโหลดขึ้น Firebase Storage ทันที (background)
-        const _user=_fbAuth?_fbAuth.currentUser:null;
-        if(_fbStorage&&_user){
-          canvas.toBlob(async blob=>{
+        // อัปโหลดขึ้น ImgBB ทันที (background) ถ้ามี API Key
+        if(_getImgBBKey()){
+          (async()=>{
             try{
-              const ts=Date.now()+'_'+Math.random().toString(36).slice(2,7);
-              const ref=_fbStorage.ref(`photos/${_user.uid}/temp/${ts}.jpg`);
-              await ref.put(blob,{contentType:'image/jpeg'});
-              const httpUrl=await ref.getDownloadURL();
-              // แทนที่ base64 ด้วย HTTP URL ณ index ที่ถูกต้อง
-              const idx=_addPhotos.indexOf(base64);
-              if(idx>=0){_addPhotos[idx]=httpUrl;updatePhotoGrid();}
-            }catch(e){console.warn('Photo bg upload:',e);}
-          },'image/jpeg',0.82);
+              const httpUrl=await _uploadToImgBB(base64);
+              if(httpUrl){
+                const idx=_addPhotos.indexOf(base64);
+                if(idx>=0){_addPhotos[idx]=httpUrl;updatePhotoGrid();}
+              }
+            }catch(e){console.warn('ImgBB bg upload:',e);}
+          })();
         }
       };
       img.src=e.target.result;
@@ -4744,6 +4753,8 @@ function initProfilePage(){
   const wa=document.getElementById('prof-whatsapp');if(wa)wa.value=ap.whatsapp||'';
   const wc=document.getElementById('prof-wechat');if(wc)wc.value=ap.wechat||'';
   const fo=document.getElementById('prof-footer');if(fo)fo.value=ap.footer||'';
+  const ik=document.getElementById('prof-imgbb');if(ik)ik.value=_getImgBBKey();
+  const st=document.getElementById('imgbb-status');if(st)st.textContent=_getImgBBKey()?'✅':'';
   const ps=document.getElementById('pref-sell');if(ps)ps.value=cfg.sell||'S';
   const pr=document.getElementById('pref-rent');if(pr)pr.value=cfg.rent||'R';
   updatePrefixPreview();
@@ -4753,6 +4764,7 @@ function initProfilePage(){
 function loadAgentProfile(){
   try{return JSON.parse(localStorage.getItem('sahai_agent_profile')||'{}');}catch{return{};}
 }
+function _getImgBBKey(){return localStorage.getItem('sahai_imgbb_key')||'';}
 function saveAgentProfile(){
   const ap={
     name:document.getElementById('prof-name').value.trim(),
@@ -4764,8 +4776,34 @@ function saveAgentProfile(){
     footer:document.getElementById('prof-footer').value.trim(),
   };
   localStorage.setItem('sahai_agent_profile',JSON.stringify(ap));
+  // บันทึก ImgBB Key แยกต่างหาก
+  const imgbbKey=(document.getElementById('prof-imgbb')||{}).value||'';
+  if(imgbbKey.trim()){
+    localStorage.setItem('sahai_imgbb_key',imgbbKey.trim());
+    const st=document.getElementById('imgbb-status');
+    if(st){st.textContent='✅';setTimeout(()=>{if(st)st.textContent='';},3000);}
+  }
   showToast('💾 บันทึกโปรไฟล์แล้ว ✅');
   document.getElementById('prof-preview').style.display='none';
+}
+// ═══ ImgBB Upload — อัปโหลดรูป base64 ขึ้น cloud ฟรี ═══
+async function _uploadToImgBB(base64OrDataUrl){
+  const key=_getImgBBKey();
+  if(!key)return null;
+  try{
+    const b64=base64OrDataUrl.startsWith('data:')?base64OrDataUrl.split(',')[1]:base64OrDataUrl;
+    const fd=new FormData();
+    fd.append('key',key);
+    fd.append('image',b64);
+    const res=await fetch('https://api.imgbb.com/1/upload',{method:'POST',body:fd});
+    const json=await res.json();
+    if(json.success&&json.data&&json.data.url)return json.data.url;
+    console.warn('ImgBB response:',json);
+    return null;
+  }catch(e){
+    console.warn('ImgBB upload fail:',e);
+    return null;
+  }
 }
 function previewProfileCopy(){
   const ap=loadAgentProfile();
@@ -4910,29 +4948,21 @@ function _lsKey(k){
   const uid=(_fbAuth&&_fbAuth.currentUser)?_fbAuth.currentUser.uid:'';
   return uid?'sahai_'+k+'_'+uid:'';
 }
-// อัปโหลดรูป base64 ไป Firebase Storage → คืน HTTP URL
-async function _uploadPhotoIfBase64(dataUrl, uid, propId, idx){
-  if(!dataUrl||!dataUrl.startsWith('data:')||!_fbStorage) return dataUrl;
-  try{
-    const res=await fetch(dataUrl);
-    const blob=await res.blob();
-    const ext=blob.type==='image/png'?'png':'jpg';
-    const ref=_fbStorage.ref(`photos/${uid}/${propId}/${idx}.${ext}`);
-    await ref.put(blob,{contentType:blob.type});
-    return await ref.getDownloadURL();
-  }catch(e){
-    console.warn('Photo upload fail:',e);
-    return dataUrl; // fallback: คงเป็น base64 ไว้ก่อน
-  }
+// อัปโหลดรูป base64 ไป ImgBB → คืน HTTP URL
+async function _uploadPhotoIfBase64(dataUrl){
+  if(!dataUrl||!dataUrl.startsWith('data:')) return dataUrl;
+  const url=await _uploadToImgBB(dataUrl);
+  return url||dataUrl; // fallback: คงเป็น base64 ถ้าอัปไม่สำเร็จ
 }
 
-// อัปโหลดรูป base64 ทุกชิ้นใน array
-async function _uploadAllBase64Photos(props, uid){
+// อัปโหลดรูป base64 ทุกชิ้นใน array ไป ImgBB
+async function _uploadAllBase64Photos(props){
+  if(!_getImgBBKey()) return; // ไม่มี key → ข้าม
   for(const p of props){
     if(!p.photos||!p.photos.some(u=>u&&u.startsWith('data:'))) continue;
     const newPhotos=[];
     for(let i=0;i<p.photos.length;i++){
-      const url=await _uploadPhotoIfBase64(p.photos[i],uid,p.id,i);
+      const url=await _uploadPhotoIfBase64(p.photos[i]);
       newPhotos.push(url);
     }
     p.photos=newPhotos;
@@ -4958,13 +4988,13 @@ async function saveData(){
     localStorage.setItem('sahai_leads_'+user.uid,JSON.stringify(leads));
   }catch(e){}
 
-  // ═══ STEP 3: อัปโหลด base64 → Firebase Storage (background, ถ้ามี) ═══
-  if(_fbStorage){
+  // ═══ STEP 3: อัปโหลด base64 → ImgBB (background, ถ้ามี API Key) ═══
+  if(_getImgBBKey()){
     const allProps=[...SELL,...RENT];
     const hasBase64=allProps.some(p=>p.photos&&p.photos.some(u=>u&&u.startsWith('data:')));
     if(hasBase64){
-      _uploadAllBase64Photos(allProps,user.uid).then(()=>{
-        // อัปเดต IndexedDB และ Firestore หลัง upload สำเร็จ
+      _uploadAllBase64Photos(allProps).then(()=>{
+        // หลัง upload สำเร็จ → อัปเดต IndexedDB + Firestore ด้วย HTTP URLs ใหม่
         _idbSaveAllPhotos(user.uid);
         const onlyHttp=arr=>arr.map(p=>({...p,photos:(p.photos||[]).filter(u=>typeof u==='string'&&u.startsWith('http'))}));
         _fbDb.collection('users').doc(user.uid).set({
