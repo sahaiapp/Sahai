@@ -1516,6 +1516,7 @@ function updateFilterCount(type){
 function renderCards(type){
   const data=type==='sell'?SELL:RENT,f=type==='sell'?sellFilter:rentFilter;
   const filtered=applyFilters(data,f);
+  filtered.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true,sensitivity:'base'}));
   const el=document.getElementById(type+'-cards');
   const sub=document.getElementById(type+'-sub');if(sub)sub.textContent=`${filtered.length} รายการ`;
   updateFilterCount(type);
@@ -1524,6 +1525,7 @@ function renderCards(type){
 function renderTable(type){
   const data=type==='sell'?SELL:RENT,f=type==='sell'?sellFilter:rentFilter;
   const filtered=applyFilters(data,f);
+  filtered.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true,sensitivity:'base'}));
   const ph=type==='sell'?'ราคาขาย':'ค่าเช่า/ด.';
   let h=`<table class="data-table"><thead><tr><th>รหัส</th><th>ชื่อทรัพย์</th><th>ทำเล</th><th>ประเภท</th><th>${ph}</th><th>นอน</th><th>สถานะ</th><th>เจ้าของ</th><th>เบอร์ติดต่อ</th><th>โลเคชั่น</th><th></th></tr></thead><tbody>`;
   filtered.forEach(p=>{
@@ -2485,8 +2487,10 @@ function openEditListing(type,id){
       <div class="detail-grid-2">
         <div class="form-group"><label>ประเภทธุรกรรม</label>
           <select class="form-input" id="af-mode" disabled style="opacity:.6">
-            <option value="${type}" selected>${isSell?'ขาย':'เช่า'} (${p.id})</option>
+            <option value="${type}" selected>${isSell?'ขาย':'เช่า'}</option>
           </select></div>
+        <div class="form-group"><label>รหัสทรัพย์ <span style="font-size:10px;color:var(--primary);font-weight:600">(แก้ไขได้)</span></label>
+          <input class="form-input" id="af-edit-id" value="${p.id}" style="font-weight:700;color:var(--primary);letter-spacing:.04em" placeholder="เช่น R-001" oninput="this.value=this.value.toUpperCase()"></div>
         <div class="form-group"><label>ประเภทอสังหา</label>
           <select class="form-input" id="af-type" onchange="updateFieldsByType(this.value)">
             ${['บ้านเดี่ยว','พูลวิลล่า','คอนโด','ทาวน์เฮ้าส์','ที่ดิน','อาคารพาณิชย์','โรงแรม','โรงงาน','โกดัง','อื่นๆ'].map(t=>`<option${p.type===t?' selected':''}>${t}</option>`).join('')}
@@ -2687,6 +2691,14 @@ function saveEditListing(){
   const idx=data.findIndex(x=>x.id===_editId);
   if(idx<0){showToast('❌ ไม่พบทรัพย์');return;}
   const isSell=_editType==='sell';
+  // --- แก้ไขรหัสทรัพย์ ---
+  const newId=(mc.querySelector('#af-edit-id')?.value||'').trim().toUpperCase()||data[idx].id;
+  if(newId!==data[idx].id){
+    const allData=[...SELL,...RENT];
+    if(allData.find(x=>x.id===newId)){showToast('⚠️ รหัส '+newId+' มีอยู่แล้ว กรุณาใช้รหัสอื่น');return;}
+    data[idx].id=newId;
+    _editId=newId;
+  }
   const commSell=parseFloat((mq('af-comm-sell')||{}).value)||3;
   const commRent=parseFloat((mq('af-comm-rent')||{}).value)||1;
   const commission=isSell?commSell/100:commRent;
