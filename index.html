@@ -3857,6 +3857,7 @@ function fillFormFromFb(p,images){
   sel('af-mode',p.mode);
   if(p.mode)onModeChange(p.mode);
   sel('af-type',p.type);
+  if(p.type)setTimeout(()=>updateFieldsByType(p.type),50);
   if(p.price)set('af-price',parseInt(p.price).toLocaleString('th-TH'));
   if(p.bed)set('af-bed',p.bed);
   if(p.bath)set('af-bath',p.bath);
@@ -4126,7 +4127,7 @@ function updateFieldsByType(type){
   const commercial=['อาคารพาณิชย์','โรงแรม'];
   const hotelOnly=['โรงแรม'];
   const industrial=['โรงงาน','โกดัง'];
-  const show=(id,vis)=>{const el=document.getElementById(id);if(el)el.style.display=vis?'':'none';};
+  const show=(id,vis)=>{const els=document.querySelectorAll('#'+id);els.forEach(el=>el.style.display=vis?'block':'none');};
   // Bedroom / bathroom — hide for land, industrial
   const hasBed=residential.includes(type)||type==='อาคารพาณิชย์'||type==='อื่นๆ'||!type;
   show('fg-bed',hasBed);
