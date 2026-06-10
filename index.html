@@ -1469,7 +1469,7 @@ function renderSellCard(p){
     <div class="card-title">${p.title}</div>
     <div class="card-loc">📍 ${p.zone}, ${p.province}</div>
     <div class="card-price">฿${fmt(p.price)} <span>บาท</span></div>
-    <div class="card-specs">${p.bed?`<span>🛏 ${p.bed}</span>`:''}${p.bath?`<span>🚿 ${p.bath}</span>`:''}${p.land?`<span>📐 ${fmt(p.land)} ตร.ว.</span>`:''}</div>
+    <div class="card-specs">${p.bed?`<span>🛏 ${p.bed}</span>`:''}${p.bath?`<span>🚿 ${p.bath}</span>`:''}${p.land?`<span>📐 ${fmt(p.land)} ตร.ว.</span>`:''}${p.condoBuilding?`<span>🏢 ${p.condoBuilding}</span>`:''}${p.condoFloor?`<span>⬆️ ชั้น ${p.condoFloor}</span>`:''}${p.rooms?`<span>🛎 ${p.rooms} ห้อง</span>`:''}${p.floors?`<span>🏗 ${p.floors} ชั้น</span>`:''}${p.height?`<span>📏 ${p.height} ม.</span>`:''}${p.phase3==='มี'?`<span>⚡ 3 เฟส</span>`:''}</div>
   </div>
   <div class="card-footer">
     <span class="cf-btn cf-blue" onclick="event.stopPropagation();openDetail('sell','${p.id}')">รายละเอียด</span>
@@ -1487,7 +1487,7 @@ function renderRentCard(p){
     <div class="card-title">${p.title}</div>
     <div class="card-loc">📍 ${p.zone}, ${p.province}</div>
     <div class="card-price">฿${fmt(p.price)} <span>/เดือน</span></div>
-    <div class="card-specs">${p.bed?`<span>🛏 ${p.bed}</span>`:''}${p.bath?`<span>🚿 ${p.bath}</span>`:''}${p.minContract?`<span>📅 ${p.minContract}ด.</span>`:''}</div>
+    <div class="card-specs">${p.bed?`<span>🛏 ${p.bed}</span>`:''}${p.bath?`<span>🚿 ${p.bath}</span>`:''}${p.condoBuilding?`<span>🏢 ${p.condoBuilding}</span>`:''}${p.condoFloor?`<span>⬆️ ชั้น ${p.condoFloor}</span>`:''}${p.rooms?`<span>🛎 ${p.rooms} ห้อง</span>`:''}${p.floors?`<span>🏗 ${p.floors} ชั้น</span>`:''}${p.height?`<span>📏 ${p.height} ม.</span>`:''}${p.phase3==='มี'?`<span>⚡ 3 เฟส</span>`:''}${p.minContract?`<span>📅 ${p.minContract}ด.</span>`:''}</div>
   </div>
   <div class="card-footer">
     <span class="cf-btn cf-blue" onclick="event.stopPropagation();openDetail('rent','${p.id}')">รายละเอียด</span>
@@ -1788,6 +1788,7 @@ function openDetail(type,id){
       ${p.usable?`<div class="detail-item"><label>ใช้สอย</label><div class="val">${fmt(p.usable)} ตร.ม.</div></div>`:''}
       ${p.bed?`<div class="detail-item"><label>ห้องนอน</label><div class="val">🛏 ${p.bed}</div></div>`:''}
       ${p.bath?`<div class="detail-item"><label>ห้องน้ำ</label><div class="val">🚿 ${p.bath}</div></div>`:''}
+      ${p.condoBuilding?`<div class="detail-item"><label>ตึก / อาคาร</label><div class="val">🏢 ${p.condoBuilding}</div></div>`:''}
       ${p.condoFloor?`<div class="detail-item"><label>ชั้นที่</label><div class="val">🏢 ชั้น ${p.condoFloor}</div></div>`:''}
       ${p.floors?`<div class="detail-item"><label>จำนวนชั้น</label><div class="val">${p.floors} ชั้น</div></div>`:''}
       ${p.frontage?`<div class="detail-item"><label>หน้ากว้าง</label><div class="val">${p.frontage} ม.</div></div>`:''}
@@ -2288,6 +2289,7 @@ function showAddListing(){
         </div>
         <div class="form-group" id="fg-bed"><label>ห้องนอน</label><input class="form-input" id="af-bed" type="number" placeholder="3"></div>
         <div class="form-group" id="fg-bath"><label>ห้องน้ำ</label><input class="form-input" id="af-bath" type="number" placeholder="2"></div>
+        <div class="form-group" id="fg-condo-building" style="display:none"><label>ตึก / อาคาร</label><input class="form-input" id="af-condo-building" type="text" placeholder="เช่น ตึก A, Tower 1"></div>
         <div class="form-group" id="fg-condo-floor" style="display:none"><label>ชั้นที่</label><input class="form-input" id="af-condo-floor" type="number" min="1" placeholder="เช่น 5"></div>
         <div class="form-group" id="fg-land"><label>เนื้อที่ดิน (ตร.ว.)</label><input class="form-input" id="af-land" type="number" placeholder="100"></div>
         <div class="form-group" id="fg-usable"><label>พื้นที่ใช้สอย (ตร.ม.)</label><input class="form-input" id="af-usable" type="number" placeholder="200"></div>
@@ -2518,6 +2520,7 @@ function openEditListing(type,id){
           <select class="form-input" id="af-status-dup" style="display:none"></select></div>
         <div class="form-group" id="fg-bed"><label>ห้องนอน</label><input class="form-input" id="af-bed" type="number" value="${p.bed||''}"></div>
         <div class="form-group" id="fg-bath"><label>ห้องน้ำ</label><input class="form-input" id="af-bath" type="number" value="${p.bath||''}"></div>
+        <div class="form-group" id="fg-condo-building" style="display:none"><label>ตึก / อาคาร</label><input class="form-input" id="af-condo-building" type="text" value="${p.condoBuilding||''}" placeholder="เช่น ตึก A, Tower 1"></div>
         <div class="form-group" id="fg-condo-floor" style="display:none"><label>ชั้นที่</label><input class="form-input" id="af-condo-floor" type="number" min="1" value="${p.condoFloor||''}"></div>
         <div class="form-group" id="fg-land"><label>เนื้อที่ดิน (ตร.ว.)</label><input class="form-input" id="af-land" type="number" value="${p.land||''}"></div>
         <div class="form-group" id="fg-usable"><label>พื้นที่ใช้สอย (ตร.ม.)</label><input class="form-input" id="af-usable" type="number" value="${p.usable||''}"></div>
@@ -2745,6 +2748,7 @@ function saveEditListing(){
     land_l:parseFloat((mq('af-land-l')||{}).value)||data[idx].land_l||null,
     zoning:(mq('af-zoning')||{}).value||data[idx].zoning||null,
     floors:parseInt((mq('af-floors')||{}).value)||data[idx].floors||null,
+    condoBuilding:(mq('af-condo-building')||{}).value?.trim()||data[idx].condoBuilding||null,
     condoFloor:parseInt((mq('af-condo-floor')||{}).value)||data[idx].condoFloor||null,
     videoUrl:(mq('af-video')||{}).value?.trim()||data[idx].videoUrl||null,
     updatedAt:today(),
@@ -4127,6 +4131,7 @@ function updateFieldsByType(type){
   const hasBed=residential.includes(type)||type==='อาคารพาณิชย์'||type==='อื่นๆ'||!type;
   show('fg-bed',hasBed);
   show('fg-bath',hasBed);
+  show('fg-condo-building',type==='คอนโด');
   show('fg-condo-floor',type==='คอนโด');
   // Land area (sqw) — hide for ที่ดิน (uses ไร่/งาน/ตร.ว. instead) and condo
   const hasLand=!landTypes.includes(type)&&type!=='คอนโด';
@@ -4208,6 +4213,7 @@ function saveNewListing(){
     land_l:parseFloat(document.getElementById('af-land-l')?.value)||null,
     zoning:document.getElementById('af-zoning')?.value||null,
     floors:parseInt(document.getElementById('af-floors')?.value)||null,
+    condoBuilding:document.getElementById('af-condo-building')?.value?.trim()||null,
     condoFloor:parseInt(document.getElementById('af-condo-floor')?.value)||null,
     videoUrl:document.getElementById('af-video')?.value?.trim()||null,
     updatedAt:today(),
