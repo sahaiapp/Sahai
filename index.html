@@ -1833,14 +1833,16 @@ function closeModal(){const ov=document.getElementById('modal');ov.classList.rem
 // กดข้างนอก modal — ปิดเฉพาะ modal ที่ไม่ใช่ "เพิ่มทรัพย์"
 // modal เพิ่มทรัพย์ต้องกด ✕ เท่านั้น (ป้องกันข้อมูลหาย)
 function handleOverlayClick(){
-  if(window._modalType==='addListing'){
-    // แสดง shake เตือนแทนปิด
+  const editTypes=['addListing','editListing','editLead'];
+  if(editTypes.includes(window._modalType)){
+    // Shake เตือนแทนปิด — ไม่ให้ข้อมูลหาย
     const mc=document.getElementById('modal-content');
     if(mc){
       mc.style.transition='transform .08s';
-      mc.style.transform='translateX(6px)';
-      setTimeout(()=>{mc.style.transform='translateX(-6px)';
-        setTimeout(()=>{mc.style.transform='translateX(0)';},80);},80);
+      mc.style.transform='translateX(8px)';
+      setTimeout(()=>{mc.style.transform='translateX(-8px)';
+        setTimeout(()=>{mc.style.transform='translateX(4px)';
+          setTimeout(()=>{mc.style.transform='translateX(0)';},60);},80);},80);
     }
   } else {
     closeModal();
@@ -2439,6 +2441,7 @@ function openEditListing(type,id){
   const p=data.find(x=>x.id===id);
   if(!p)return;
   _editType=type;_editId=id;
+  window._modalType='editListing';
   // Reset photo state and load existing photos
   addLat=p.lat||null;addLng=p.lng||null;addMiniMap=null;addMiniMarker=null;addLocMode='map';
   _addPhotos=[...(p.photos||[])];
