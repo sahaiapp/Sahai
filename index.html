@@ -2896,19 +2896,23 @@ async function setShareLang(lang){
   // Check cache — skip API if already translated
   const p=_scProp;
   const feats=(p.features||'').split('\n').filter(f=>f.trim());
-  const alreadyCached=_scTranslated['__title__'+lang]&&feats.every((_,i)=>_scTranslated['__feat_'+i+'_'+lang]);
+  const alreadyCached=_scTranslated['__title__'+lang]&&_scTranslated['__zone__'+lang]&&feats.every((_,i)=>_scTranslated['__feat_'+i+'_'+lang]);
   if(alreadyCached){renderShareCard();return;}
   // Show loading
   const statusEl=document.getElementById('sc-translate-status');
   const container=document.getElementById('sc-card-container');
   statusEl.style.display='inline';
   container.classList.add('sc-translating');
-  // Translate title and all features in parallel
-  const [transTitle,...transFeats]=await Promise.all([
+  // Translate title, zone, province and all features in parallel
+  const [transTitle,transZone,transProv,...transFeats]=await Promise.all([
     translateText(p.title,lang),
+    translateText(p.zone||'',lang),
+    translateText(p.province||'',lang),
     ...feats.map(f=>translateText(f,lang))
   ]);
   _scTranslated['__title__'+lang]=transTitle;
+  _scTranslated['__zone__'+lang]=transZone;
+  _scTranslated['__prov__'+lang]=transProv;
   feats.forEach((f,i)=>{_scTranslated['__feat_'+i+'_'+lang]=transFeats[i]||f;});
   statusEl.style.display='none';
   container.classList.remove('sc-translating');
@@ -3000,7 +3004,7 @@ function renderShareCard(){
     <div class="sc-body">
       <div class="sc-mode-tag ${isSell?'sc-mode-sell':'sc-mode-rent'}">${isSell?L.sell:L.rent} &nbsp;·&nbsp; ${p.id}</div>
       <div class="sc-title">${displayTitle}</div>
-      <div class="sc-loc">📍 ${p.zone}${p.province?', '+p.province:''}</div>
+      <div class="sc-loc">📍 ${_scTranslated['__zone__'+_scLang]||p.zone}${p.province?', '+(_scTranslated['__prov__'+_scLang]||p.province):''}</div>
       <div class="sc-price">${priceDisplay} <span>${priceLabel}</span></div>
       <div class="sc-specs">${specs.map(s=>`<span class="sc-spec">${s}</span>`).join('')}</div>
       ${displayFeats.length?`<div class="sc-features">
@@ -3091,13 +3095,17 @@ async function copyMultiLangText(){
   const rawFeats=(p.features||'').split('\n').filter(f=>f.trim()).slice(0,6);
   for(const lang of langs){
     // แปลทุกภาษา รวมถึงไทย (กรณีต้นฉบับเป็นภาษาอื่น เช่น EN)
-    const alreadyCached=_scTranslated['__title__'+lang]&&rawFeats.every((_,i)=>_scTranslated['__feat_'+i+'_'+lang]);
+    const alreadyCached=_scTranslated['__title__'+lang]&&_scTranslated['__zone__'+lang]&&rawFeats.every((_,i)=>_scTranslated['__feat_'+i+'_'+lang]);
     if(alreadyCached)continue;
-    const [transTitle,...transFeats]=await Promise.all([
+    const [transTitle,transZone,transProv,...transFeats]=await Promise.all([
       translateText(p.title,lang),
+      translateText(p.zone||'',lang),
+      translateText(p.province||'',lang),
       ...rawFeats.map(f=>translateText(f,lang))
     ]);
     _scTranslated['__title__'+lang]=transTitle;
+    _scTranslated['__zone__'+lang]=transZone;
+    _scTranslated['__prov__'+lang]=transProv;
     rawFeats.forEach((f,i)=>{_scTranslated['__feat_'+i+'_'+lang]=transFeats[i]||f;});
   }
   const ap=loadAgentProfile();
@@ -3114,7 +3122,7 @@ async function copyMultiLangText(){
     if(p.usable)specs.push('🏗️ '+p.usable.toLocaleString('th-TH')+' '+L.sqm);
     let blk='';
     blk+=(isSell?L.sell:L.rent)+' '+displayTitle+'\n';
-    blk+='\n📍 '+(p.zone||'')+(p.province?', '+p.province:'')+'\n';
+    blk+='\n📍 '+(_scTranslated['__zone__'+lang]||p.zone||'')+(p.province?', '+(_scTranslated['__prov__'+lang]||p.province):'')+'\n';
     blk+='💰 '+(isSell?L.salePrice:L.rentPrice)+': '+priceStr+'\n';
     if(specs.length)blk+='\n'+specs.join('  ')+'\n';
     if(displayFeats.length){blk+='\n'+L.highlights+'\n';displayFeats.forEach(f=>{blk+='• '+f+'\n';});}
