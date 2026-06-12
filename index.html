@@ -2837,16 +2837,18 @@ const SC_LABELS={
 };
 
 async function translateText(text,targetLang){
-  if(!text||targetLang==='th')return text;
+  if(!text)return text;
   const cacheKey=targetLang+'::'+text;
   if(_scTranslated[cacheKey])return _scTranslated[cacheKey];
   try{
     const langMap={en:'autodetect|en',zh:'autodetect|zh-CN',cn:'autodetect|zh-CN',ru:'autodetect|ru',th:'autodetect|th'};
-    const url=`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langMap[targetLang]}`;
+    const pair=langMap[targetLang];
+    if(!pair)return text;
+    const url=`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${pair}`;
     const res=await fetch(url,{signal:AbortSignal.timeout(6000)});
     const data=await res.json();
     const raw=data.responseData?.translatedText||text;
-    // MyMemory returns this error when source == target language → show original
+    // MyMemory returns error when source == target language → show original
     const errorPhrases=['PLEASE SELECT TWO DISTINCT LANGUAGES','INVALID LANGUAGE PAIR','MYMEMORY WARNING','IS AN INVALID'];
     const isError=errorPhrases.some(e=>raw.toUpperCase().includes(e));
     const result=isError?text:raw;
@@ -2891,15 +2893,17 @@ document.addEventListener('click',function(e){
 async function setShareLang(lang){
   if(_scLang===lang)return;
   _scLang=lang;
-  if(lang==='th'){renderShareCard();return;}
+  // Check cache — skip API if already translated
+  const p=_scProp;
+  const feats=(p.features||'').split('\n').filter(f=>f.trim());
+  const alreadyCached=_scTranslated['__title__'+lang]&&feats.every((_,i)=>_scTranslated['__feat_'+i+'_'+lang]);
+  if(alreadyCached){renderShareCard();return;}
   // Show loading
   const statusEl=document.getElementById('sc-translate-status');
   const container=document.getElementById('sc-card-container');
   statusEl.style.display='inline';
   container.classList.add('sc-translating');
-  const p=_scProp;
-  // Translate title and features in parallel
-  const feats=(p.features||'').split('\n').filter(f=>f.trim());
+  // Translate title and all features in parallel
   const [transTitle,...transFeats]=await Promise.all([
     translateText(p.title,lang),
     ...feats.map(f=>translateText(f,lang))
@@ -3086,7 +3090,9 @@ async function copyMultiLangText(){
   const langs=[...['th','en','zh','ru'].filter(l=>_copyLangs.has(l))];
   const rawFeats=(p.features||'').split('\n').filter(f=>f.trim()).slice(0,6);
   for(const lang of langs){
-    if(lang==='th')continue;
+    // แปลทุกภาษา รวมถึงไทย (กรณีต้นฉบับเป็นภาษาอื่น เช่น EN)
+    const alreadyCached=_scTranslated['__title__'+lang]&&rawFeats.every((_,i)=>_scTranslated['__feat_'+i+'_'+lang]);
+    if(alreadyCached)continue;
     const [transTitle,...transFeats]=await Promise.all([
       translateText(p.title,lang),
       ...rawFeats.map(f=>translateText(f,lang))
