@@ -3068,18 +3068,6 @@ function copyShareText(){
   msg+=`💰 ${L.salePrice}: ${priceStr}\n`;
   if(specs.length)msg+=`\n${specs.join('  ')}\n`;
   if(displayFeats.length){msg+=`\n${L.highlights}\n`;displayFeats.forEach(f=>msg+=`• ${f}\n`);}
-  // Owner contact
-  const hasOwner=p.phone||p.ownerLine||p.ownerFb||p.ownerWhatsapp;
-  if(p.owner||hasOwner){
-    msg+=`\n🏠 เจ้าของทรัพย์\n`;
-    if(p.owner)msg+=`👤 ${p.owner}\n`;
-    if(p.phone)msg+=`📞 โทร: ${p.phone}\n`;
-    if(p.ownerLine)msg+=`💬 LINE: ${p.ownerLine}\n`;
-    if(p.ownerFb)msg+=`📘 Facebook: ${p.ownerFb}\n`;
-    if(p.ownerWhatsapp)msg+=`📲 WhatsApp: ${p.ownerWhatsapp}\n`;
-    if(p.ownerWechat)msg+=`🟢 WeChat: ${p.ownerWechat}\n`;
-    msg+=`——————————\n`;
-  }
   // Agent contact
   const ap=loadAgentProfile();
   const hasContact=ap.phone||ap.line||ap.whatsapp||ap.wechat;
@@ -3157,18 +3145,6 @@ async function copyMultiLangText(){
     blocks.push(blk.trim());
   }
   // ข้อมูลติดต่อโผล่แค่ครั้งเดียวท้ายสุด ไม่ซ้ำทุกภาษา
-  // Owner contact block (once, ท้ายสุด)
-  const hasOwnerContact=p.phone||p.ownerLine||p.ownerFb||p.ownerWhatsapp;
-  let ownerBlock='';
-  if(p.owner||hasOwnerContact){
-    ownerBlock+='\n🏠 เจ้าของทรัพย์\n';
-    if(p.owner)ownerBlock+='👤 '+p.owner+'\n';
-    if(p.phone)ownerBlock+='📞 โทร: '+p.phone+'\n';
-    if(p.ownerLine)ownerBlock+='💬 LINE: '+p.ownerLine+'\n';
-    if(p.ownerFb)ownerBlock+='📘 Facebook: '+p.ownerFb+'\n';
-    if(p.ownerWhatsapp)ownerBlock+='📲 WhatsApp: '+p.ownerWhatsapp+'\n';
-    if(p.ownerWechat)ownerBlock+='🟢 WeChat: '+p.ownerWechat+'\n';
-  }
   const hasContact=ap.phone||ap.line||ap.whatsapp||ap.wechat;
   let contactBlock='';
   if(ap.name||hasContact){
@@ -3181,7 +3157,7 @@ async function copyMultiLangText(){
     if(ap.footer)contactBlock+='\n'+ap.footer+'\n';
   }
   const sep='\n\n——————————\n\n';
-  const finalMsg=blocks.join(sep)+(ownerBlock?'\n\n——————————\n'+ownerBlock:'')+contactBlock+'\n\n#Sahai #Pattaya';
+  const finalMsg=blocks.join(sep)+contactBlock+'\n\n#Sahai #Pattaya';
   statusEl.style.display='none';
   if(btn){btn.disabled=false;btn.innerHTML='📋 Copy โฆษณา';}
   navigator.clipboard.writeText(finalMsg)
