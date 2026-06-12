@@ -1825,9 +1825,13 @@ function openDetail(type,id){
     </div></div>
     ${p.videoUrl?`<div class="detail-section prop-video-wrap"><div class="prop-video-label">🎬 วิดีโอ</div><iframe src="${getVideoEmbedUrl(p.videoUrl)}" allowfullscreen allow="autoplay"></iframe></div>`:''}\n        ${p.features?`<div class="detail-section"><div class="ds-title">จุดเด่น</div><div style="display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--text2)">${featureHtml}</div></div>`:''}
     ${p.note?`<div class="detail-section"><div class="ds-title">หมายเหตุ</div><div style="font-size:13px;color:var(--text2);font-style:italic">${p.note}</div></div>`:''}
-    ${p.owner||p.phone?`<div class="detail-section"><div class="ds-title">เจ้าของ / ผู้ฝาก</div><div class="detail-grid-2">
+    ${p.owner||p.phone||p.ownerLine||p.ownerFb||p.ownerWhatsapp?`<div class="detail-section"><div class="ds-title">เจ้าของ / ผู้ฝาก</div><div class="detail-grid-2">
       ${p.owner?`<div class="detail-item"><label>ชื่อ</label><div class="val">👤 ${p.owner}</div></div>`:''}
-      ${p.phone?`<div class="detail-item"><label>โทร</label><div class="val"><a href="tel:${p.phone}" style="color:var(--primary)">${p.phone}</a></div></div>`:''}
+      ${p.phone?`<div class="detail-item"><label>📞 โทร</label><div class="val"><a href="tel:${p.phone}" style="color:var(--primary)">${p.phone}</a></div></div>`:''}
+      ${p.ownerLine?`<div class="detail-item"><label>💬 LINE</label><div class="val">${p.ownerLine}</div></div>`:''}
+      ${p.ownerFb?`<div class="detail-item"><label>📘 Facebook</label><div class="val">${p.ownerFb}</div></div>`:''}
+      ${p.ownerWhatsapp?`<div class="detail-item"><label>📲 WhatsApp</label><div class="val"><a href="https://wa.me/${p.ownerWhatsapp.replace(/[^0-9]/g,'')}" target="_blank" style="color:var(--primary)">${p.ownerWhatsapp}</a></div></div>`:''}
+      ${p.ownerWechat?`<div class="detail-item"><label>🟢 WeChat</label><div class="val">${p.ownerWechat}</div></div>`:''}
     </div></div>`:''}
     ${p.lat&&p.lng?`<div class="detail-section"><div class="ds-title">📍 ตำแหน่งทรัพย์</div><div id="detail-mini-map"></div><div class="detail-map-coords">📌 พิกัด: ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</div></div>`:''}
   </div>
@@ -2377,7 +2381,11 @@ function showAddListing(){
       <div class="ds-title">เจ้าของ / ผู้ฝาก</div>
       <div class="detail-grid-2">
         <div class="form-group"><label>ชื่อ</label><input class="form-input" id="af-owner" placeholder="คุณ..."></div>
-        <div class="form-group"><label>โทร</label><input class="form-input" id="af-phone" placeholder="0xx-xxx-xxxx"></div>
+        <div class="form-group"><label>📞 โทร</label><input class="form-input" id="af-phone" placeholder="0xx-xxx-xxxx"></div>
+        <div class="form-group"><label>💬 LINE ID</label><input class="form-input" id="af-owner-line" placeholder="LINE ID เจ้าของ"></div>
+        <div class="form-group"><label>📘 Facebook</label><input class="form-input" id="af-owner-fb" placeholder="ชื่อ Facebook เจ้าของ"></div>
+        <div class="form-group"><label>📲 WhatsApp</label><input class="form-input" id="af-owner-whatsapp" placeholder="เบอร์ WhatsApp เจ้าของ"></div>
+        <div class="form-group"><label>🟢 WeChat</label><input class="form-input" id="af-owner-wechat" placeholder="WeChat ID เจ้าของ"></div>
       </div>
     </div>
     <div class="detail-section">
@@ -2622,7 +2630,11 @@ function openEditListing(type,id){
       <div class="ds-title">เจ้าของ / ผู้ฝาก</div>
       <div class="detail-grid-2">
         <div class="form-group"><label>ชื่อ</label><input class="form-input" id="af-owner" value="${p.owner||''}"></div>
-        <div class="form-group"><label>โทร</label><input class="form-input" id="af-phone" value="${p.phone||''}"></div>
+        <div class="form-group"><label>📞 โทร</label><input class="form-input" id="af-phone" value="${p.phone||''}"></div>
+        <div class="form-group"><label>💬 LINE ID</label><input class="form-input" id="af-owner-line" value="${p.ownerLine||''}" placeholder="LINE ID เจ้าของ"></div>
+        <div class="form-group"><label>📘 Facebook</label><input class="form-input" id="af-owner-fb" value="${p.ownerFb||''}" placeholder="ชื่อ Facebook เจ้าของ"></div>
+        <div class="form-group"><label>📲 WhatsApp</label><input class="form-input" id="af-owner-whatsapp" value="${p.ownerWhatsapp||''}" placeholder="เบอร์ WhatsApp เจ้าของ"></div>
+        <div class="form-group"><label>🟢 WeChat</label><input class="form-input" id="af-owner-wechat" value="${p.ownerWechat||''}" placeholder="WeChat ID เจ้าของ"></div>
       </div>
     </div>
     <div class="detail-section">
@@ -2755,6 +2767,10 @@ function saveEditListing(){
     status:(mq('af-status')||{}).value||data[idx].status,
     owner:(mq('af-owner')||{}).value||null,
     phone:(mq('af-phone')||{}).value||null,
+    ownerLine:(mq('af-owner-line')||{}).value||null,
+    ownerFb:(mq('af-owner-fb')||{}).value||null,
+    ownerWhatsapp:(mq('af-owner-whatsapp')||{}).value||null,
+    ownerWechat:(mq('af-owner-wechat')||{}).value||null,
     commission,
     actualComm,
     closedDate: closedDate||(data[idx].closedDate||null),
@@ -3052,6 +3068,18 @@ function copyShareText(){
   msg+=`💰 ${L.salePrice}: ${priceStr}\n`;
   if(specs.length)msg+=`\n${specs.join('  ')}\n`;
   if(displayFeats.length){msg+=`\n${L.highlights}\n`;displayFeats.forEach(f=>msg+=`• ${f}\n`);}
+  // Owner contact
+  const hasOwner=p.phone||p.ownerLine||p.ownerFb||p.ownerWhatsapp;
+  if(p.owner||hasOwner){
+    msg+=`\n🏠 เจ้าของทรัพย์\n`;
+    if(p.owner)msg+=`👤 ${p.owner}\n`;
+    if(p.phone)msg+=`📞 โทร: ${p.phone}\n`;
+    if(p.ownerLine)msg+=`💬 LINE: ${p.ownerLine}\n`;
+    if(p.ownerFb)msg+=`📘 Facebook: ${p.ownerFb}\n`;
+    if(p.ownerWhatsapp)msg+=`📲 WhatsApp: ${p.ownerWhatsapp}\n`;
+    if(p.ownerWechat)msg+=`🟢 WeChat: ${p.ownerWechat}\n`;
+    msg+=`——————————\n`;
+  }
   // Agent contact
   const ap=loadAgentProfile();
   const hasContact=ap.phone||ap.line||ap.whatsapp||ap.wechat;
@@ -3129,6 +3157,18 @@ async function copyMultiLangText(){
     blocks.push(blk.trim());
   }
   // ข้อมูลติดต่อโผล่แค่ครั้งเดียวท้ายสุด ไม่ซ้ำทุกภาษา
+  // Owner contact block (once, ท้ายสุด)
+  const hasOwnerContact=p.phone||p.ownerLine||p.ownerFb||p.ownerWhatsapp;
+  let ownerBlock='';
+  if(p.owner||hasOwnerContact){
+    ownerBlock+='\n🏠 เจ้าของทรัพย์\n';
+    if(p.owner)ownerBlock+='👤 '+p.owner+'\n';
+    if(p.phone)ownerBlock+='📞 โทร: '+p.phone+'\n';
+    if(p.ownerLine)ownerBlock+='💬 LINE: '+p.ownerLine+'\n';
+    if(p.ownerFb)ownerBlock+='📘 Facebook: '+p.ownerFb+'\n';
+    if(p.ownerWhatsapp)ownerBlock+='📲 WhatsApp: '+p.ownerWhatsapp+'\n';
+    if(p.ownerWechat)ownerBlock+='🟢 WeChat: '+p.ownerWechat+'\n';
+  }
   const hasContact=ap.phone||ap.line||ap.whatsapp||ap.wechat;
   let contactBlock='';
   if(ap.name||hasContact){
@@ -3141,7 +3181,7 @@ async function copyMultiLangText(){
     if(ap.footer)contactBlock+='\n'+ap.footer+'\n';
   }
   const sep='\n\n——————————\n\n';
-  const finalMsg=blocks.join(sep)+contactBlock+'\n\n#Sahai #Pattaya';
+  const finalMsg=blocks.join(sep)+(ownerBlock?'\n\n——————————\n'+ownerBlock:'')+contactBlock+'\n\n#Sahai #Pattaya';
   statusEl.style.display='none';
   if(btn){btn.disabled=false;btn.innerHTML='📋 Copy โฆษณา';}
   navigator.clipboard.writeText(finalMsg)
@@ -4239,6 +4279,10 @@ function saveNewListing(){
     status:document.getElementById('af-status').value,
     owner:document.getElementById('af-owner').value||null,
     phone:document.getElementById('af-phone').value||null,
+    ownerLine:document.getElementById('af-owner-line')?.value||null,
+    ownerFb:document.getElementById('af-owner-fb')?.value||null,
+    ownerWhatsapp:document.getElementById('af-owner-whatsapp')?.value||null,
+    ownerWechat:document.getElementById('af-owner-wechat')?.value||null,
     commission,
     actualComm,
     closedDate,
