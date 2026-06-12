@@ -1292,6 +1292,30 @@ textarea.form-input{resize:vertical;min-height:72px}
           </div>
         </div>
 
+        <!-- STALE DAYS SETTINGS -->
+        <div style="max-width:600px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px 32px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-top:20px">
+          <div style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border)">
+            <div style="font-size:18px;font-weight:700;color:var(--text1);margin-bottom:4px">⏰ ตั้งค่าแจ้งเตือนทรัพย์ไม่ได้อัปเดต</div>
+            <div style="font-size:13px;color:var(--text3)">ระบบจะแจ้งเตือนบน Dashboard เมื่อทรัพย์ไม่ได้อัปเดตตามจำนวนวันที่กำหนด</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px">
+            <div class="form-group" style="margin:0;flex:1;max-width:200px">
+              <label>จำนวนวัน (เกณฑ์แจ้งเตือน)</label>
+              <div style="position:relative">
+                <input class="form-input" id="pref-stale-days" type="number" min="1" max="365"
+                  placeholder="30"
+                  style="font-weight:700;padding-right:36px"
+                  oninput="document.getElementById('stale-days-preview').textContent=this.value||'30'">
+                <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--text3)">วัน</span>
+              </div>
+            </div>
+            <div style="font-size:13px;color:var(--text2);padding-top:20px">
+              ทรัพย์ที่ไม่อัปเดตนานกว่า <strong id="stale-days-preview">30</strong> วัน จะแสดง ⚠️ บน Dashboard
+            </div>
+          </div>
+          <button class="btn btn-primary" onclick="saveStaleDays()">💾 บันทึกเกณฑ์วัน</button>
+        </div>
+
         <!-- ID PREFIX SETTINGS -->
         <div style="max-width:600px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px 32px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-top:20px">
           <div style="margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid var(--border)">
@@ -2821,7 +2845,11 @@ async function translateText(text,targetLang){
     const url=`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langMap[targetLang]}`;
     const res=await fetch(url,{signal:AbortSignal.timeout(6000)});
     const data=await res.json();
-    const result=data.responseData?.translatedText||text;
+    const raw=data.responseData?.translatedText||text;
+    // MyMemory returns this error when source == target language → show original
+    const errorPhrases=['PLEASE SELECT TWO DISTINCT LANGUAGES','INVALID LANGUAGE PAIR','MYMEMORY WARNING','IS AN INVALID'];
+    const isError=errorPhrases.some(e=>raw.toUpperCase().includes(e));
+    const result=isError?text:raw;
     _scTranslated[cacheKey]=result;
     return result;
   }catch(e){return text;}
@@ -3855,7 +3883,7 @@ function fillFormFromFb(p,images){
   const sel=(id,val)=>{const el=document.getElementById(id);if(!el||!val)return;for(let o of el.options)if(o.value===val||o.text===val){o.selected=true;el.classList.add('has-value');break;}};
   if(p.title)set('af-title',p.title);
   sel('af-mode',p.mode);
-  if(p.mode)onModeChange(p.mode);
+  if(p.mode){onModeChange(p.mode);updateAutoId();}
   sel('af-type',p.type);
   if(p.type)setTimeout(()=>updateFieldsByType(p.type),50);
   if(p.price)set('af-price',parseInt(p.price).toLocaleString('th-TH'));
@@ -4579,7 +4607,7 @@ function renderStaleProps(){
     if(!rawDate)return false;
     const isoDate=rawDate.includes('/')?rawDate.split('/').reverse().join('-'):rawDate;
     const days=Math.floor((Date.now()-new Date(isoDate).getTime())/86400000);
-    return days>=30;
+    return days>=getStaleDays();
   }).map(p=>{
     const rawDate=p.updatedAt||p.date||'';
     const isoDate=rawDate.includes('/')?rawDate.split('/').reverse().join('-'):rawDate;
@@ -4847,6 +4875,8 @@ function getAiResponse(ai,msg){
 function loadIdPrefix(){
   try{return JSON.parse(localStorage.getItem('sahai_id_prefix')||'{}');}catch{return{};}
 }
+function getStaleDays(){return parseInt(localStorage.getItem('sahai_stale_days')||'30',10)||30;}
+function saveStaleDays(){const v=parseInt(document.getElementById('pref-stale-days')?.value||'30',10);const val=isNaN(v)||v<1?30:v;localStorage.setItem('sahai_stale_days',val);showToast('💾 บันทึกเกณฑ์วันแล้ว ('+val+' วัน) ✅');renderStaleProps();}
 function getPrefix(mode){
   const cfg=loadIdPrefix();
   if(mode==='sell') return (cfg.sell||'S').toUpperCase().replace(/[^A-Z0-9\-]/g,'').substring(0,8)||'S';
@@ -4905,6 +4935,7 @@ function initProfilePage(){
   const ps=document.getElementById('pref-sell');if(ps)ps.value=cfg.sell||'S';
   const pr=document.getElementById('pref-rent');if(pr)pr.value=cfg.rent||'R';
   updatePrefixPreview();
+  const sd=document.getElementById('pref-stale-days');if(sd){const v=getStaleDays();sd.value=v;const preview=document.getElementById('stale-days-preview');if(preview)preview.textContent=v;}
 }
 
 /* ── AGENT PROFILE ── */
@@ -5520,7 +5551,7 @@ function buildPopup(p){
   const rawDate=p.updatedAt||p.date||'';
   const isoDate=rawDate.includes('/')?rawDate.split('/').reverse().join('-'):rawDate;
   const daysSince=isoDate?Math.floor((Date.now()-new Date(isoDate).getTime())/86400000):0;
-  const staleHtml=daysSince>30?`<div style="font-size:11px;color:#EF4444;margin-bottom:5px">⚠️ ไม่ได้อัปเดต ${daysSince} วัน</div>`:'';
+  const staleHtml=daysSince>getStaleDays()?`<div style="font-size:11px;color:#EF4444;margin-bottom:5px">⚠️ ไม่ได้อัปเดต ${daysSince} วัน</div>`:'';
   return`<div class="map-popup-id">${p.id} · ${p.type}</div>
 <div class="map-popup-title">${p.title}</div>
 <div class="map-popup-price ${isSell?'':'rent'}">${priceStr}</div>
