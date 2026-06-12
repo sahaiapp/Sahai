@@ -2381,7 +2381,7 @@ function showAddListing(){
       <div class="ds-title">เจ้าของ / ผู้ฝาก</div>
       <div class="detail-grid-2">
         <div class="form-group"><label>ชื่อ</label><input class="form-input" id="af-owner" placeholder="คุณ..."></div>
-        <div class="form-group"><label>📞 โทร</label><input class="form-input" id="af-phone" placeholder="0xx-xxx-xxxx"></div>
+        <div class="form-group"><label>📞 โทร</label><input class="form-input" id="af-phone" placeholder="0xx-xxx-xxxx" oninput="formatPhoneNum(this)" inputmode="numeric"></div>
         <div class="form-group"><label>💬 LINE ID</label><input class="form-input" id="af-owner-line" placeholder="LINE ID เจ้าของ"></div>
         <div class="form-group"><label>📘 Facebook</label><input class="form-input" id="af-owner-fb" placeholder="ชื่อ Facebook เจ้าของ"></div>
         <div class="form-group"><label>📲 WhatsApp</label><input class="form-input" id="af-owner-whatsapp" placeholder="เบอร์ WhatsApp เจ้าของ"></div>
@@ -2630,7 +2630,7 @@ function openEditListing(type,id){
       <div class="ds-title">เจ้าของ / ผู้ฝาก</div>
       <div class="detail-grid-2">
         <div class="form-group"><label>ชื่อ</label><input class="form-input" id="af-owner" value="${p.owner||''}"></div>
-        <div class="form-group"><label>📞 โทร</label><input class="form-input" id="af-phone" value="${p.phone||''}"></div>
+        <div class="form-group"><label>📞 โทร</label><input class="form-input" id="af-phone" value="${p.phone||''}" placeholder="0xx-xxx-xxxx" oninput="formatPhoneNum(this)" inputmode="numeric"></div>
         <div class="form-group"><label>💬 LINE ID</label><input class="form-input" id="af-owner-line" value="${p.ownerLine||''}" placeholder="LINE ID เจ้าของ"></div>
         <div class="form-group"><label>📘 Facebook</label><input class="form-input" id="af-owner-fb" value="${p.ownerFb||''}" placeholder="ชื่อ Facebook เจ้าของ"></div>
         <div class="form-group"><label>📲 WhatsApp</label><input class="form-input" id="af-owner-whatsapp" value="${p.ownerWhatsapp||''}" placeholder="เบอร์ WhatsApp เจ้าของ"></div>
@@ -4908,6 +4908,12 @@ function getAiResponse(ai,msg){
 /* ── ID PREFIX SETTINGS ── */
 function loadIdPrefix(){
   try{return JSON.parse(localStorage.getItem('sahai_id_prefix')||'{}');}catch{return{};}
+}
+function formatPhoneNum(el){
+  let v=el.value.replace(/[^0-9]/g,'').substring(0,10);
+  if(v.length>6) v=v.slice(0,3)+'-'+v.slice(3,6)+'-'+v.slice(6);
+  else if(v.length>3) v=v.slice(0,3)+'-'+v.slice(3);
+  el.value=v;
 }
 function getStaleDays(){return parseInt(localStorage.getItem('sahai_stale_days')||'30',10)||30;}
 function saveStaleDays(){const v=parseInt(document.getElementById('pref-stale-days')?.value||'30',10);const val=isNaN(v)||v<1?30:v;localStorage.setItem('sahai_stale_days',val);showToast('💾 บันทึกเกณฑ์วันแล้ว ('+val+' วัน) ✅');renderStaleProps();}
